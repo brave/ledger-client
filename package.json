@@ -1,0 +1,36 @@
+{
+  "name": "ledger-client",
+  "version": "0.0.7",
+  "description": "An example of client code for the Brave ledger.",
+  "main": "index.js",
+  "scripts": {
+    "start": "DEBUG=* ./example.js",
+    "test": "npm run test-security",
+    "test-security": "nsp check"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/brave/ledger-client"
+  },
+  "author": "Brave Developers <support@brave.com>",
+  "license": "MPL-2.0",
+  "bugs": {
+    "url": "https://github.com/brave/ledger-client/issues"
+  },
+  "homepage": "https://github.com/brave/ledger-client",
+  "dependencies": {
+    "bitgo": "^0.11.64",
+    "underscore": "1.8.3"
+  },
+  "engines": {
+    "node": "5.6.0",
+    "npm": "3.6.0"
+  },
+  "devDependencies": {
+    "del": "^2.0.2",
+    "gulp": "^3.9.0",
+    "gulp-standard": "^5.2.2",
+    "nsp": "^2.2.0",
+    "run-sequence": "^1.1.0"
+  }
+}
