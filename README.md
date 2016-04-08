@@ -72,12 +72,16 @@ indicating that persistent storage be updated.
 
         var address = this.client.walletAddress()
 
-        var btc = this.client.walletBalance()
+        this.client.walletProperties(function (err, properties) {
+            console.log('wallet balance=' + properties.balance + 'BTC')
+        })
+
+        var redirectURL = this.client.verifyURL()
 
 ### Monthly Reconcilation
 The client should periodical call:
 
-        var nowP = client.readyToReconcile(callback)
+        var nowP = client.readyToReconcile()
 
 If `true` is returned,
 then it is time for the monthly reconcilation to occur.

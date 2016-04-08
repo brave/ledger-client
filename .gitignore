@@ -1,7 +1,9 @@
+config.json
+
 # Logs
 logs
-*.log
-npm-debug.log*
+*.log*
+typescript
 
 # Runtime data
 pids
