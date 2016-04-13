@@ -2,6 +2,7 @@ var anonize = require('node-anonize2-relic')
 var crypto = require('crypto')
 var http = require('http')
 var https = require('https')
+var Joi = require('joi')
 var underscore = require('underscore')
 var url = require('url')
 
@@ -10,7 +11,7 @@ var Client = function (personaId, options, state, callback) {
 
   var self = this
 
-  self.options = underscore.defaults(options || {}, { server: 'https://ledger.brave.com', verboseP: false })
+  self.options = underscore.defaults(options || {}, { server: 'https://ledger.brave.com', debugP: false, verboseP: false })
   self.state = underscore.defaults(state || {}, { personaId: personaId })
 
   return self.sync(callback)
@@ -20,6 +21,8 @@ Client.prototype.sync = function (callback) {
   var self = this
 
   var now
+
+  if (typeof callback !== 'function') throw new Error('missing callback parameter')
 
   if (self.state.delayStamp) {
     now = underscore.now()
@@ -40,6 +43,9 @@ Client.prototype.sync = function (callback) {
 
   if (!self.state.wallet) return self.registerWallet(callback)
   self.credentials.wallet = new anonize.Credential(self.state.wallet)
+
+  if (self.state.pollTransaction) return self.prepareTransaction(callback)
+  if (self.state.prepareTransaction) return self.submitTransaction(callback)
 }
 
 var propertyList = [ 'setting', 'fee' ]
@@ -52,6 +58,8 @@ Client.prototype.set = function (properties, callback) {
   var self = this
 
   var modifyP
+
+  if (typeof callback !== 'function') throw new Error('missing callback parameter')
 
   modifyP = false
   propertyList.forEach(function (property) {
@@ -76,6 +84,7 @@ Client.prototype.walletProperties = function (callback) {
 
   var path
 
+  if (typeof callback !== 'function') throw new Error('missing callback parameter')
   if ((!self.state.properties) || (!self.state.properties.wallet)) {
     throw new Error('Ledger client initialization incomplete.')
   }
@@ -105,6 +114,54 @@ Client.prototype.readyToReconcile = function () {
 }
 
 Client.prototype.reconcile = function (report, callback) {
+  var self = this
+
+  var delayTime, path, result, schema
+
+  if (!callback) {
+    callback = report
+    report = null
+  }
+  if (typeof callback !== 'function') throw new Error('missing callback parameter')
+  if (!this.state.reconcileStamp) throw new Error('Ledger client initialization incomplete.')
+  if (self.state.properties.setting === 'adFree') {
+    if (!report) throw new Error('missing report parameter')
+
+    schema = Joi.array().items(Joi.object().keys(
+               { site: Joi.string().required(), weight: Joi.number().positive().required() }
+             )).min(1)
+
+    result = Joi.validate(report, schema)
+    if (result.error) throw new Error(result.error)
+  }
+
+  delayTime = underscore.now() - this.state.reconcileStamp
+  if (delayTime > 0) return callback(null, null, delayTime)
+
+  if (self.state.properties.setting !== 'adFree') {
+    throw new Error('setting not (yet) supported: ' + self.state.properties.setting)
+  }
+
+  path = '/v1/wallet/' + self.state.properties.wallet.paymentId
+  self.roundtrip({ path: path, method: 'GET' }, function (err, response, body) {
+    var payload
+
+    if (err) return callback(err)
+
+    if (body.balance < self.state.properties.fee) return callback(new Error('insufficient funds'))
+
+    path = '/v1/wallet/' + self.state.properties.wallet.paymentId
+    payload = { amount: self.state.properties.fee }
+    self.roundtrip({ path: path, method: 'PUT', payload: payload }, function (err, response, body) {
+      if (err) return callback(err)
+
+      self.state.pollTransaction = underscore.defaults(body, { report: report, stamp: self.state.reconcileStamp,
+                                                               server: self.options.server })
+      self.state.reconcileStamp = underscore.now() + self.backOff(30)
+
+      callback(null, self.state, 100)
+    })
+  })
 }
 
 /*
@@ -155,7 +212,7 @@ Client.prototype.prepareWallet = function (callback) {
     self.state.prepareWallet = underscore.defaults(body, { server: self.options.server })
 
     now = underscore.now()
-    delayTime = (self.options.verboseP ? 1 : randomInt(0, 30 * 86400)) * 1000
+    delayTime = self.backOff(randomInt(0, 30))
     self.state.delayStamp = now + delayTime
 
     callback(null, self.state, delayTime)
@@ -174,6 +231,8 @@ Client.prototype.commitWallet = function (callback) {
     if (err) return callback(err)
 
 // TBD: setting should be adReplacement, and the initial fee should come from a web service...
+//      e.g., https://blockchain.info/tobtc?currency=USD&value=4.95
+//         or https://api.bitcoinaverage.com/ticker/global/USD/last
     self.state.properties = underscore.extend({ setting: 'adFree', fee: 0.0118 }, underscore.pick(body, 'wallet'))
     delete self.state.prepareWallet
 
@@ -204,11 +263,66 @@ Client.prototype.registerWallet = function (callback) {
       try { credential.finalize(body.verification) } catch (ex) { return callback(ex) }
       self.state.wallet = JSON.stringify(credential)
       self.state.bootStamp = underscore.now()
-      self.state.reconcileStamp = self.state.bootTime + ((self.options.verboseP ? 1 : (30 * 86400 * 1000)) * 1000)
+      self.state.reconcileStamp = self.state.bootStamp + self.backOff(30)
 
-      callback(null, self.state, 100)
+      callback(null, self.state)
     })
   })
+}
+
+Client.prototype.prepareTransaction = function (callback) {
+  var self = this
+
+  var path
+
+  path = '/v1/wallet/' + self.state.properties.wallet.paymentId
+  self.roundtrip({ path: path, method: 'GET' }, function (err, response, body) {
+    if (err) return callback(err)
+
+    if ((!body.lastPaymentStamp) || (body.lastPaymentStamp < self.state.pollTransaction.stamp)) {
+      return callback(null, null, randomInt(0, 10 * 60 * 1000))
+    }
+
+    path = '/v1/surveyor/browsing/current/' + self.state.properties.wallet.paymentId
+    self.roundtrip({ path: path, method: 'GET' }, function (err, response, body) {
+      var delayTime, now
+
+      if (err) return callback(err)
+
+      self.state.prepareTransaction = underscore.defaults(body, { report: self.state.pollTransaction.report,
+                                                                  server: self.options.server })
+      delete self.state.pollTransaction
+
+      now = underscore.now()
+      delayTime = self.backOff(randomInt(0, 1))
+      self.state.delayStamp = now + delayTime
+
+      callback(null, self.state, delayTime)
+    })
+  })
+}
+
+Client.prototype.submitTransaction = function (callback) {
+  var self = this
+
+  var path, payload
+  var surveyor = new anonize.Surveyor(self.state.prepareTransaction)
+
+  path = '/v1/surveyor/browsing/' + encodeURIComponent(surveyor.parameters.surveyorId)
+  try {
+    payload = { proof: self.credentials.wallet.submit(surveyor, { report: self.state.prepareTransaction.report }) }
+  } catch (ex) { return callback(ex) }
+  self.roundtrip({ path: path, method: 'PUT', payload: payload }, function (err, response, body) {
+    if (err) return callback(err)
+
+    delete self.state.prepareTransaction
+
+    callback(null, self.state)
+  })
+}
+
+Client.prototype.backOff = function (days) {
+  return (this.options.debugP ? 1 : days * 86400) * 1000
 }
 
 // roundtrip to the ledger

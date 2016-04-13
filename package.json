@@ -1,10 +1,10 @@
 {
   "name": "ledger-client",
-  "version": "0.0.7",
+  "version": "0.5.0",
   "description": "An example of client code for the Brave ledger.",
   "main": "index.js",
   "scripts": {
-    "start": "DEBUG=*,-babel LD_LIBRARY_PATH=node_modules/node-anonize2-relic/src/relic-build/lib/:$LD_LIBRARY_PATH ./example.js",
+    "blastoff": "DEBUG=*,-babel LD_LIBRARY_PATH=node_modules/node-anonize2-relic/src/relic-build/lib/:$LD_LIBRARY_PATH ./blastoff.js",
     "test": "npm run test-security",
     "test-security": "nsp check"
   },
@@ -20,6 +20,7 @@
   "homepage": "https://github.com/brave/ledger-client",
   "dependencies": {
     "bitgo": "^0.11.64",
+    "joi": "https://github.com/mrose17/joi.git#a8597b9ef6d63f0ceeff7122a0e45cb1f99ba248",
     "node-anonize2-relic": "https://github.com/brave/node-anonize2-relic.git",
     "underscore": "1.8.3",
     "vault-client": "https://github.com/brave/vault-client.git#minimized"
@@ -32,6 +33,7 @@
     "del": "^2.0.2",
     "gulp": "^3.9.0",
     "gulp-standard": "^5.2.2",
+    "node-uuid": "^1.4.7",
     "nsp": "^2.2.0",
     "run-sequence": "^1.1.0"
   }

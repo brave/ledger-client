@@ -93,24 +93,24 @@ then the client prepares the browsing report and calls:
 
 For the `report` parameter, the associated [JSON schema](http://json-schema.org/latest/json-schema-core.html) is:
 
-        { "id": "http://brave.com/report-schema#",
-          "$schema": "http://json-schema.org/draft-04/schema#",
-          "type": "object",
-          "properties":
+        { "id": "http://brave.com/report-schema#"
+        , "$schema": "http://json-schema.org/draft-04/schema#"
+        , "type": "object"
+        , "properties":
           { "report":
-            { "type": "array",
-              "minItems": 1,
-              "items":
-              { "type": "object",
-                "properties":
-                { "site": { "type": "string", "format": "uri" },
-                  "weight": { "type": "number" }
-                },
-                "required": [ "site", "weight" ]
+            { "type": "array"
+            , "minItems": 1
+            , "items":
+              { "type": "object"
+              , "properties":
+                { "site": { "type": "string", "format": "uri" }
+                , "weight": { "type": "number" }
+                }
+              , "required": [ "site", "weight" ]
               }
             }
-          },
-          "required": [ "report" ]
+          }
+        , "required": [ "report" ]
         }
 
 
@@ -122,6 +122,6 @@ Regardless of the value of the Bravery `setting`,
 
 
 ## Examples
-__[TBD]__
-
-You can also take a look at the file `example.js`.
+The file `blastoff.js` is a (non-sensical) example of how to use the API --
+it blasts through the various API calls,
+doing a sanity check.

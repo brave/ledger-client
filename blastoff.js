@@ -1,42 +1,8 @@
 #!/usr/bin/env node
 
-// wrap around webcrypto.getRandomValues() to use high-quality PRNG, when available
-var getRandomValues = function (ab) {
-  var err, i, j, octets
-
-  if (!ab.BYTES_PER_ELEMENT) {
-    err = new Error()
-    err.name = 'TypeMisMatchError'
-    throw err
-  }
-  if (ab.length > 65536) {
-    err = new Error()
-    err.name = 'QuotaExceededError'
-    throw err
-  }
-
-  octets = require('crypto').randomBytes(ab.length * ab.BYTES_PER_ELEMENT)
-
-  if (ab.BYTES_PER_ELEMENT === 1) ab.set(octets)
-  else {
-    for (i = j = 0; i < ab.length; i++, j += ab.BYTES_PER_ELEMENT) {
-      ab[i] = { 2: (octets[j + 1] << 8) | (octets[j]),
-                4: (octets[j + 3] << 24) | (octets[j + 2] << 16) | (octets[j + 1] << 8) | (octets[j]) }[ab.BYTES_PER_ELEMENT]
-    }
-  }
-
-  return ab
-}
-var uuid = function () {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-    var r = getRandomValues(new Uint8Array(1))[0] % 16 | 0
-    var v = c === 'x' ? r : (r & 0x3 | 0x8)
-
-    return v.toString(16).toLowerCase()
-  })
-}
-process.env.PERSONA = uuid()
+process.env.PERSONA = require('node-uuid').v4()
 process.env.SERVER = 'http://127.0.0.1:3001'
+process.env.DEBUG = true
 process.env.VERBOSE = true
 
 var fs = require('fs')
@@ -52,19 +18,25 @@ var url = require('url')
 var usage = function (command) {
   if (typeof command !== 'string') command = 'get|put|rm [ args... ]'
   console.log('usage: node ' + path.basename(process.argv[1]) +
-              ' [ -f file ] [ [ -s https://... ] | [-p personaID] ] [ -v ] ' + command)
+              ' [ -d ] [ -f file | -p personaID] [ -s https://... ] [ -v ] ' + command)
   process.exit(1)
 }
 
 var server
 var argv = process.argv.slice(2)
 var configFile = process.env.CONFIGFILE || 'config.json'
+var debugP = process.env.DEBUG || false
 var personaID = process.env.PERSONA
 var verboseP = process.env.VERBOSE || false
 
 while (argv.length > 0) {
   if (argv[0].indexOf('-') !== 0) break
 
+  if (argv[0] === '-d') {
+    debugP = true
+    argv = argv.slice(1)
+    continue
+  }
   if (argv[0] === '-v') {
     verboseP = true
     argv = argv.slice(1)
@@ -108,7 +80,7 @@ var callback = function (err, result, delayTime) {
 fs.readFile(personaID ? '/dev/null' : configFile, { encoding: 'utf8' }, function (err, data) {
   var state = err ? null : data ? JSON.parse(data) : {}
 
-  client = require('./index.js')(personaID, { server: server, verboseP: verboseP }, state, callback)
+  client = require('./index.js')(personaID, { server: server, debugP: debugP, verboseP: verboseP }, state, callback)
 })
 
 /*
@@ -117,28 +89,18 @@ fs.readFile(personaID ? '/dev/null' : configFile, { encoding: 'utf8' }, function
  *
  */
 
+var reconcileP = false
+
 var run = function (delayTime) {
-  var argv0
+  var report = [ { site: 'wsj.com', weight: 100 } ]
 
   if (delayTime > 0) return setTimeout(function () { client.sync(callback) }, delayTime)
 
-  if (argv.length === 0) argv = [ 'get' ]
-  argv0 = argv[0]
-  argv = argv.slice(1)
+  if (!client.readyToReconcile()) return client.reconcile(report, callback)
+  if (reconcileP) return console.log('already reconciling.')
 
-  try {
-    console.log(argv)
-  } catch (err) {
-    oops(argv0, err)
-  }
-}
-
-var done = function (command) {
-  if (typeof command !== 'string') command = ''
-  else command += ' '
-  if (verboseP) console.log(command + 'done.')
-
-  process.exit(0)
+  reconcileP = true
+  client.reconcile(report, callback)
 }
 
 var oops = function (s, err) {
