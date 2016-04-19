@@ -1,6 +1,6 @@
 {
   "name": "ledger-client",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "An example of client code for the Brave ledger.",
   "main": "index.js",
   "scripts": {
@@ -19,11 +19,9 @@
   },
   "homepage": "https://github.com/brave/ledger-client",
   "dependencies": {
-    "bitgo": "^0.11.64",
     "joi": "https://github.com/mrose17/joi.git#a8597b9ef6d63f0ceeff7122a0e45cb1f99ba248",
     "node-anonize2-relic": "https://github.com/brave/node-anonize2-relic.git",
-    "underscore": "1.8.3",
-    "vault-client": "https://github.com/brave/vault-client.git#minimized"
+    "underscore": "1.8.3"
   },
   "engines": {
     "node": "5.6.0",
