@@ -1,10 +1,10 @@
 {
   "name": "ledger-client",
-  "version": "0.6.0",
+  "version": "0.6.2",
   "description": "An example of client code for the Brave ledger.",
   "main": "index.js",
   "scripts": {
-    "blastoff": "DEBUG=*,-babel LD_LIBRARY_PATH=node_modules/node-anonize2-relic/src/relic-build/lib/:$LD_LIBRARY_PATH ./blastoff.js",
+    "blastoff": "DEBUG=*,-babel ./blastoff.js -d -v -s http://127.0.0.1:3001",
     "test": "npm run test-security",
     "test-security": "nsp check"
   },

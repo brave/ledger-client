@@ -142,24 +142,32 @@ Client.prototype.reconcile = function (report, callback) {
     throw new Error('setting not (yet) supported: ' + self.state.properties.setting)
   }
 
-  path = '/v1/wallet/' + self.state.properties.wallet.paymentId
+  path = '/v1/surveyor/browsing/current/' + self.state.properties.wallet.paymentId
   self.roundtrip({ path: path, method: 'GET' }, function (err, response, body) {
-    var payload
+    var surveyorInfo = body
 
     if (err) return callback(err)
 
-    if (body.balance < self.state.properties.fee) return callback(new Error('insufficient funds'))
-
     path = '/v1/wallet/' + self.state.properties.wallet.paymentId
-    payload = { amount: self.state.properties.fee }
-    self.roundtrip({ path: path, method: 'PUT', payload: payload }, function (err, response, body) {
+    self.roundtrip({ path: path, method: 'GET' }, function (err, response, body) {
+      var payload
+
       if (err) return callback(err)
 
-      self.state.pollTransaction = underscore.defaults(body, { report: report, stamp: self.state.reconcileStamp,
-                                                               server: self.options.server })
-      self.state.reconcileStamp = underscore.now() + self.backOff(30)
+      if (body.balance < self.state.properties.fee) return callback(new Error('insufficient funds'))
 
-      callback(null, self.state, 100)
+      path = '/v1/wallet/' + self.state.properties.wallet.paymentId
+      payload = { amount: self.state.properties.fee, surveyorId: surveyorInfo.surveyorId }
+      self.roundtrip({ path: path, method: 'PUT', payload: payload }, function (err, response, body) {
+        if (err) return callback(err)
+
+        self.state.pollTransaction = underscore.defaults(body, { report: report, stamp: self.state.reconcileStamp,
+                                                                 surveyorInfo: surveyorInfo,
+                                                                 server: self.options.server })
+        self.state.reconcileStamp = underscore.now() + self.backOff(30)
+
+        callback(null, self.state, 100)
+      })
     })
   })
 }
@@ -277,28 +285,24 @@ Client.prototype.prepareTransaction = function (callback) {
 
   path = '/v1/wallet/' + self.state.properties.wallet.paymentId
   self.roundtrip({ path: path, method: 'GET' }, function (err, response, body) {
+    var delayTime, now
+
     if (err) return callback(err)
 
     if ((!body.lastPaymentStamp) || (body.lastPaymentStamp < self.state.pollTransaction.stamp)) {
       return callback(null, null, randomInt(0, 10 * 60 * 1000))
     }
 
-    path = '/v1/surveyor/browsing/current/' + self.state.properties.wallet.paymentId
-    self.roundtrip({ path: path, method: 'GET' }, function (err, response, body) {
-      var delayTime, now
+    self.state.prepareTransaction = underscore.defaults(underscore.pick(self.state.pollTransaction,
+                                                                        [ 'report', 'surveyorInfo' ]),
+                                                        { server: self.options.server })
+    delete self.state.pollTransaction
 
-      if (err) return callback(err)
+    now = underscore.now()
+    delayTime = self.backOff(randomInt(0, 1))
+    self.state.delayStamp = now + delayTime
 
-      self.state.prepareTransaction = underscore.defaults(body, { report: self.state.pollTransaction.report,
-                                                                  server: self.options.server })
-      delete self.state.pollTransaction
-
-      now = underscore.now()
-      delayTime = self.backOff(randomInt(0, 1))
-      self.state.delayStamp = now + delayTime
-
-      callback(null, self.state, delayTime)
-    })
+    callback(null, self.state, delayTime)
   })
 }
 
@@ -306,7 +310,7 @@ Client.prototype.submitTransaction = function (callback) {
   var self = this
 
   var path, payload
-  var surveyor = new anonize.Surveyor(self.state.prepareTransaction)
+  var surveyor = new anonize.Surveyor(self.state.prepareTransaction.surveyorInfo)
 
   path = '/v1/surveyor/browsing/' + encodeURIComponent(surveyor.parameters.surveyorId)
   try {

@@ -1,10 +1,5 @@
 #!/usr/bin/env node
 
-process.env.PERSONA = require('node-uuid').v4()
-process.env.SERVER = 'http://127.0.0.1:3001'
-process.env.DEBUG = true
-process.env.VERBOSE = true
-
 var fs = require('fs')
 var path = require('path')
 var url = require('url')
