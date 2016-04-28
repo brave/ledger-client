@@ -91,9 +91,9 @@ var reconcileP = false
 var run = function (delayTime) {
   var report = [ { site: 'wsj.com', weight: 100 } ]
 
-  if (delayTime > 0) return setTimeout(function () { client.sync(callback) }, delayTime)
+  if (delayTime > 0) return setTimeout(function () { if (client.sync(callback)) return run(0) }, delayTime)
 
-  if (!client.readyToReconcile()) return client.reconcile(report, callback)
+  if (!client.isReadyToReconcile()) return client.reconcile(report, callback)
   if (reconcileP) return console.log('already reconciling.')
 
   reconcileP = true

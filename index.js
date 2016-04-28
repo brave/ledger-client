@@ -33,28 +33,30 @@ Client.prototype.sync = function (callback) {
 
   if (!self.credentials) self.credentials = {}
 
-  if (!self.state.persona) return self.registerPersona(callback)
+  if (!self.state.persona) return self._registerPersona(callback)
   self.credentials.persona = new anonize.Credential(self.state.persona)
 
   if (!self.state.properties) {
-    if (!self.state.prepareWallet) return self.prepareWallet(callback)
-    return self.commitWallet(callback)
+    if (!self.state.prepareWallet) return self._prepareWallet(callback)
+    return self._commitWallet(callback)
   }
 
-  if (!self.state.wallet) return self.registerWallet(callback)
+  if (!self.state.wallet) return self._registerWallet(callback)
   self.credentials.wallet = new anonize.Credential(self.state.wallet)
 
-  if (self.state.pollTransaction) return self.prepareTransaction(callback)
-  if (self.state.prepareTransaction) return self.submitTransaction(callback)
+  if (self.state.pollTransaction) return self._prepareTransaction(callback)
+  if (self.state.prepareTransaction) return self._submitTransaction(callback)
+
+  return true
 }
 
 var propertyList = [ 'setting', 'fee' ]
 
-Client.prototype.get = function () {
+Client.prototype.getBraveryProperties = function () {
   return underscore.pick(this.state.properties, 'setting', 'fee')
 }
 
-Client.prototype.set = function (properties, callback) {
+Client.prototype.setBraveryProperties = function (properties, callback) {
   var self = this
 
   var modifyP
@@ -75,11 +77,11 @@ Client.prototype.set = function (properties, callback) {
   if (modifyP) callback(null, self.state)
 }
 
-Client.prototype.walletAddress = function () {
+Client.prototype.getWalletAddress = function () {
   return this.state.properties && this.state.properties.wallet && this.state.properties.wallet.address
 }
 
-Client.prototype.walletProperties = function (callback) {
+Client.prototype.getWalletProperties = function (callback) {
   var self = this
 
   var path
@@ -90,14 +92,14 @@ Client.prototype.walletProperties = function (callback) {
   }
 
   path = '/v1/wallet/' + self.state.properties.wallet.paymentId
-  self.roundtrip({ path: path, method: 'GET' }, function (err, response, body) {
+  self._roundTrip({ path: path, method: 'GET' }, function (err, response, body) {
     if (err) return callback(err)
 
     callback(null, body)
   })
 }
 
-Client.prototype.verifyURL = function () {
+Client.prototype.getVerificationURL = function () {
   if ((!this.state.properties) || (!this.state.properties.wallet)) {
     throw new Error('Ledger client initialization incomplete.')
   }
@@ -106,17 +108,17 @@ Client.prototype.verifyURL = function () {
            '/v1/oauth/bitgo/' + this.state.properties.wallet.paymentId
 }
 
-Client.prototype.readyToReconcile = function () {
+Client.prototype.isReadyToReconcile = function () {
   var now = underscore.now()
 
   if (!this.state.reconcileStamp) throw new Error('Ledger client initialization incomplete.')
-  return (this.state.reconcileStamp >= now)
+  return (this.state.reconcileStamp <= now)
 }
 
 Client.prototype.reconcile = function (report, callback) {
   var self = this
 
-  var delayTime, path, result, schema
+  var delayTime, path, schema, validity
 
   if (!callback) {
     callback = report
@@ -131,11 +133,11 @@ Client.prototype.reconcile = function (report, callback) {
                { site: Joi.string().required(), weight: Joi.number().positive().required() }
              )).min(1)
 
-    result = Joi.validate(report, schema)
-    if (result.error) throw new Error(result.error)
+    validity = Joi.validate(report, schema)
+    if (validity.error) throw new Error(validity.error)
   }
 
-  delayTime = underscore.now() - this.state.reconcileStamp
+  delayTime = this.state.reconcileStamp - underscore.now()
   if (delayTime > 0) return callback(null, null, delayTime)
 
   if (self.state.properties.setting !== 'adFree') {
@@ -143,13 +145,13 @@ Client.prototype.reconcile = function (report, callback) {
   }
 
   path = '/v1/surveyor/browsing/current/' + self.state.properties.wallet.paymentId
-  self.roundtrip({ path: path, method: 'GET' }, function (err, response, body) {
+  self._roundTrip({ path: path, method: 'GET' }, function (err, response, body) {
     var surveyorInfo = body
 
     if (err) return callback(err)
 
     path = '/v1/wallet/' + self.state.properties.wallet.paymentId
-    self.roundtrip({ path: path, method: 'GET' }, function (err, response, body) {
+    self._roundTrip({ path: path, method: 'GET' }, function (err, response, body) {
       var payload
 
       if (err) return callback(err)
@@ -158,13 +160,13 @@ Client.prototype.reconcile = function (report, callback) {
 
       path = '/v1/wallet/' + self.state.properties.wallet.paymentId
       payload = { amount: self.state.properties.fee, surveyorId: surveyorInfo.surveyorId }
-      self.roundtrip({ path: path, method: 'PUT', payload: payload }, function (err, response, body) {
+      self._roundTrip({ path: path, method: 'PUT', payload: payload }, function (err, response, body) {
         if (err) return callback(err)
 
         self.state.pollTransaction = underscore.defaults(body, { report: report, stamp: self.state.reconcileStamp,
                                                                  surveyorInfo: surveyorInfo,
                                                                  server: self.options.server })
-        self.state.reconcileStamp = underscore.now() + self.backOff(30)
+        self.state.reconcileStamp = underscore.now() + self._backOff(self.state.properties.days)
 
         callback(null, self.state, 100)
       })
@@ -178,13 +180,13 @@ Client.prototype.reconcile = function (report, callback) {
  *
  */
 
-Client.prototype.registerPersona = function (callback) {
+Client.prototype._registerPersona = function (callback) {
   var self = this
 
   var path
 
   path = '/v1/registrar/persona/publickey'
-  self.roundtrip({ path: path, method: 'GET' }, function (err, response, body) {
+  self._roundTrip({ path: path, method: 'GET' }, function (err, response, body) {
     var credential, payload, persona
 
     if (err) return callback(err)
@@ -195,7 +197,7 @@ Client.prototype.registerPersona = function (callback) {
 
     path = '/v1/registrar/persona/' + self.state.personaId
     try { payload = { proof: credential.request() } } catch (ex) { return callback(ex) }
-    self.roundtrip({ path: path, method: 'POST', payload: payload }, function (err, response, body) {
+    self._roundTrip({ path: path, method: 'POST', payload: payload }, function (err, response, body) {
       if (err) return callback(err)
 
       try { credential.finalize(body.verification) } catch (ex) { return callback(ex) }
@@ -206,28 +208,31 @@ Client.prototype.registerPersona = function (callback) {
   })
 }
 
-Client.prototype.prepareWallet = function (callback) {
+Client.prototype._prepareWallet = function (callback) {
   var self = this
 
   var path
 
   path = '/v1/surveyor/wallet/current/' + self.state.personaId
-  self.roundtrip({ path: path, method: 'GET' }, function (err, response, body) {
-    var delayTime, now
+  self._roundTrip({ path: path, method: 'GET' }, function (err, response, body) {
+    var delayTime, now, validity
+    var schema = Joi.number().positive().required()
 
     if (err) return callback(err)
 
     self.state.prepareWallet = underscore.defaults(body, { server: self.options.server })
+    validity = Joi.validate(self.state.prepareWallet.payload.adFree.fee, schema)
+    if (validity.error) throw new Error(validity.error)
 
     now = underscore.now()
-    delayTime = self.backOff(randomInt(0, 30))
+    delayTime = self._backOff(randomInt(0, self.state.prepareWallet.payload.adFree.pays || 30))
     self.state.delayStamp = now + delayTime
 
     callback(null, self.state, delayTime)
   })
 }
 
-Client.prototype.commitWallet = function (callback) {
+Client.prototype._commitWallet = function (callback) {
   var self = this
 
   var path, payload
@@ -235,26 +240,27 @@ Client.prototype.commitWallet = function (callback) {
 
   path = '/v1/surveyor/wallet/' + encodeURIComponent(surveyor.parameters.surveyorId)
   try { payload = { proof: self.credentials.persona.submit(surveyor) } } catch (ex) { return callback(ex) }
-  self.roundtrip({ path: path, method: 'PUT', payload: payload }, function (err, response, body) {
+  self._roundTrip({ path: path, method: 'PUT', payload: payload }, function (err, response, body) {
     if (err) return callback(err)
 
-// TBD: setting should be adReplacement, and the initial fee should come from a web service...
-//      e.g., https://blockchain.info/tobtc?currency=USD&value=4.95
-//         or https://api.bitcoinaverage.com/ticker/global/USD/last
-    self.state.properties = underscore.extend({ setting: 'adFree', fee: 0.0118 }, underscore.pick(body, 'wallet'))
+    self.state.properties = underscore.extend({ setting: 'adFree',
+                                                fee: self.state.prepareWallet.payload.adFree.fee,
+                                                days: self.state.prepareWallet.payload.adFree.days || 30,
+                                                configuration: self.state.prepareWallet.payload },
+                                              underscore.pick(body, 'wallet'))
     delete self.state.prepareWallet
 
     callback(null, self.state, 100)
   })
 }
 
-Client.prototype.registerWallet = function (callback) {
+Client.prototype._registerWallet = function (callback) {
   var self = this
 
   var path
 
   path = '/v1/registrar/wallet/publickey'
-  self.roundtrip({ path: path, method: 'GET' }, function (err, response, body) {
+  self._roundTrip({ path: path, method: 'GET' }, function (err, response, body) {
     var credential, payload, wallet
 
     if (err) return callback(err)
@@ -265,26 +271,26 @@ Client.prototype.registerWallet = function (callback) {
 
     path = '/v1/registrar/wallet/' + self.state.properties.wallet.paymentId
     try { payload = { proof: credential.request() } } catch (ex) { return callback(ex) }
-    self.roundtrip({ path: path, method: 'POST', payload: payload }, function (err, response, body) {
+    self._roundTrip({ path: path, method: 'POST', payload: payload }, function (err, response, body) {
       if (err) return callback(err)
 
       try { credential.finalize(body.verification) } catch (ex) { return callback(ex) }
       self.state.wallet = JSON.stringify(credential)
       self.state.bootStamp = underscore.now()
-      self.state.reconcileStamp = self.state.bootStamp + self.backOff(30)
+      self.state.reconcileStamp = self.state.bootStamp + self._backOff(self.state.properties.days)
 
-      callback(null, self.state)
+      callback(null, self.state, 100)
     })
   })
 }
 
-Client.prototype.prepareTransaction = function (callback) {
+Client.prototype._prepareTransaction = function (callback) {
   var self = this
 
   var path
 
   path = '/v1/wallet/' + self.state.properties.wallet.paymentId
-  self.roundtrip({ path: path, method: 'GET' }, function (err, response, body) {
+  self._roundTrip({ path: path, method: 'GET' }, function (err, response, body) {
     var delayTime, now
 
     if (err) return callback(err)
@@ -299,14 +305,14 @@ Client.prototype.prepareTransaction = function (callback) {
     delete self.state.pollTransaction
 
     now = underscore.now()
-    delayTime = self.backOff(randomInt(0, 1))
+    delayTime = self._backOff(randomInt(0, 1))
     self.state.delayStamp = now + delayTime
 
     callback(null, self.state, delayTime)
   })
 }
 
-Client.prototype.submitTransaction = function (callback) {
+Client.prototype._submitTransaction = function (callback) {
   var self = this
 
   var path, payload
@@ -316,21 +322,21 @@ Client.prototype.submitTransaction = function (callback) {
   try {
     payload = { proof: self.credentials.wallet.submit(surveyor, { report: self.state.prepareTransaction.report }) }
   } catch (ex) { return callback(ex) }
-  self.roundtrip({ path: path, method: 'PUT', payload: payload }, function (err, response, body) {
+  self._roundTrip({ path: path, method: 'PUT', payload: payload }, function (err, response, body) {
     if (err) return callback(err)
 
     delete self.state.prepareTransaction
 
-    callback(null, self.state)
+    callback(null, self.state, 100)
   })
 }
 
-Client.prototype.backOff = function (days) {
+Client.prototype._backOff = function (days) {
   return (this.options.debugP ? 1 : days * 86400) * 1000
 }
 
-// roundtrip to the ledger
-Client.prototype.roundtrip = function (options, callback) {
+// round-trip to the ledger
+Client.prototype._roundTrip = function (options, callback) {
   var self = this
 
   var request

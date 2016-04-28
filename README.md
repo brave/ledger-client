@@ -32,14 +32,14 @@ it will be a no-op.
 
 ### Creating an Endpoint
 
-        var client = require('ledger-client')
-        this.client = new client(personaId, options, state, callback)
+        var Client = require('ledger-client')
+        this.client = new Client(personaId, options, state, callback)
 
 where the value for `personaId` is the property of the same name associated with a
 [Brave Vault client endpoint](https://github.com/brave/vault-client#vault-properties),
 and `options` is:
 
-        { server   : 'http://ledger-staging.brave.com'
+        { server   : 'https://ledger-staging.brave.com'
         , verboseP : false
         }
 
@@ -51,7 +51,7 @@ The  client endpoint should not be referenced until the callback is invoked.
 To retrieve the Bravery properties for the Ledger,
 the client calls:
 
-        var properties = this.client.get()
+        var properties = this.client.getBraveryProperties()
 
 where `properties` is a list of configuration options:
 
@@ -63,25 +63,25 @@ where `properties` is a list of configuration options:
 To update the Bravery properties for the Ledger,
 the client calls:
 
-        this.client.set(properties, callback)
+        this.client.setBraveryProperties(properties, callback)
 
 Note that this will likely result in the `callback` being invoked with a `result` parameter,
 indicating that persistent storage be updated.
 
 ### Wallet Properties
 
-        var address = this.client.walletAddress()
+        var address = this.client.getWalletAddress()
 
-        this.client.walletProperties(function (err, properties) {
+        this.client.getWalletProperties(function (err, properties) {
             console.log('wallet balance=' + properties.balance + 'BTC')
         })
 
-        var redirectURL = this.client.verifyURL()
+        var redirectURL = this.client.getVerificationURL()
 
 ### Monthly Reconcilation
 The client should periodical call:
 
-        var nowP = client.readyToReconcile()
+        var nowP = client.isReadyToReconcile()
 
 If `true` is returned,
 then it is time for the monthly reconcilation to occur.
@@ -93,7 +93,7 @@ then the client prepares the browsing report and calls:
 
 For the `report` parameter, the associated [JSON schema](http://json-schema.org/latest/json-schema-core.html) is:
 
-        { "id": "http://brave.com/report-schema#"
+        { "id": "https://brave.com/report-schema#"
         , "$schema": "http://json-schema.org/draft-04/schema#"
         , "type": "object"
         , "properties":
