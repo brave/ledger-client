@@ -1,11 +1,11 @@
 {
   "name": "ledger-client",
-  "version": "0.6.4",
+  "version": "0.6.5",
   "description": "An example of client code for the Brave ledger.",
   "main": "index.js",
   "scripts": {
-    "blastoff": "DEBUG=*,-babel ./blastoff.js -d -v -s http://127.0.0.1:3001 -p `uuidgen`",
-    "blastoff-integration": "DEBUG=*,-babel ./blastoff.js -d -v -s https://ledger-integration.brave.com -p `uuidgen`",
+    "blastoff": "DEBUG=*,-babel ./blastoff.js -d -l -v -s http://127.0.0.1:3001 -p `uuidgen`",
+    "blastoff-integration": "DEBUG=*,-babel ./blastoff.js -d -l -v -s https://ledger-integration.brave.com -p `uuidgen`",
     "test": "npm run test-security",
     "test-security": "nsp check"
   },

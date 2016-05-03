@@ -13,7 +13,7 @@ var uuid = require('node-uuid')
 
 var usage = function () {
   console.log('usage: node ' + path.basename(process.argv[1]) +
-              ' [ -d ] [ -f file | -p personaID] [ -s https://... ] [ -v ] ' + command)
+              ' [ -d ] [ -f file | -p personaID] [ -l ] [ -s https://... ] [ -v ] ' + command)
   process.exit(1)
 }
 
@@ -22,6 +22,7 @@ var argv = process.argv.slice(2)
 var configFile = process.env.CONFIGFILE
 var personaID = process.env.PERSONA
 var debugP = process.env.DEBUG || false
+var loggingP = process.env.LOGGING || false
 var verboseP = process.env.VERBOSE || false
 
 while (argv.length > 0) {
@@ -29,6 +30,11 @@ while (argv.length > 0) {
 
   if (argv[0] === '-d') {
     debugP = true
+    argv = argv.slice(1)
+    continue
+  }
+  if (argv[0] === '-l') {
+    loggingP = true
     argv = argv.slice(1)
     continue
   }
@@ -62,10 +68,14 @@ server = url.parse(server)
 var client
 
 var callback = function (err, result, delayTime) {
+  var entries = client.report()
+
   if (err) oops('client', err)
   if (verboseP) console.log('callback delayTime=' + delayTime)
 
   if (!result) return run(delayTime)
+
+  if (entries) entries.forEach(function (entry) { console.log('*** ' + JSON.stringify(entry)) })
 
   fs.writeFile(configFile, JSON.stringify(result, null, 2), { encoding: 'utf8', mode: parseInt('644', 8) }, function (err) {
     if (err) oops(configFile, err)
@@ -77,7 +87,8 @@ var callback = function (err, result, delayTime) {
 fs.readFile(personaID ? '/dev/null' : configFile, { encoding: 'utf8' }, function (err, data) {
   var state = err ? null : data ? JSON.parse(data) : {}
 
-  client = require('./index.js')(personaID, { server: server, debugP: debugP, verboseP: verboseP }, state, callback)
+  client = require('./index.js')(personaID, { server: server, debugP: debugP, loggingP: loggingP, verboseP: verboseP }, state
+                                , callback)
 })
 
 /*

@@ -11,8 +11,10 @@ var Client = function (personaId, options, state, callback) {
 
   var self = this
 
-  self.options = underscore.defaults(options || {}, { server: 'https://ledger.brave.com', debugP: false, verboseP: false })
+  self.options = underscore.defaults(options || {}
+                                   , { server: 'https://ledger.brave.com', debugP: false, loggingP: false, verboseP: false })
   self.state = underscore.defaults(state || {}, { personaId: personaId })
+  self.logging = []
 
   return self.sync(callback)
 }
@@ -20,14 +22,16 @@ var Client = function (personaId, options, state, callback) {
 Client.prototype.sync = function (callback) {
   var self = this
 
-  var now
+  var delayTime
 
   if (typeof callback !== 'function') throw new Error('missing callback parameter')
 
   if (self.state.delayStamp) {
-    now = underscore.now()
-
-    if (self.state.delayStamp > now) return callback(null, null, self.state.delayStamp - now)
+    delayTime = this.state.delayStamp - underscore.now()
+    if (delayTime > 0) {
+      self._log('sync', { delayTime: delayTime })
+      return callback(null, null, delayTime)
+    }
     delete self.state.delayStamp
   }
 
@@ -47,12 +51,15 @@ Client.prototype.sync = function (callback) {
   if (self.state.pollTransaction) return self._prepareTransaction(callback)
   if (self.state.prepareTransaction) return self._submitTransaction(callback)
 
+  self._log('sync', { result: true })
   return true
 }
 
 var propertyList = [ 'setting', 'fee' ]
 
 Client.prototype.getBraveryProperties = function () {
+  this._log('getBraveryProperties')
+
   return underscore.pick(this.state.properties, 'setting', 'fee')
 }
 
@@ -62,6 +69,8 @@ Client.prototype.setBraveryProperties = function (properties, callback) {
   var modifyP
 
   if (typeof callback !== 'function') throw new Error('missing callback parameter')
+
+  self._log('setBraveryProperties', { keys: underscore.keys(properties) })
 
   modifyP = false
   propertyList.forEach(function (property) {
@@ -78,18 +87,21 @@ Client.prototype.setBraveryProperties = function (properties, callback) {
 }
 
 Client.prototype.getWalletAddress = function () {
+  this._log('getWalletAddress')
+
   return this.state.properties && this.state.properties.wallet && this.state.properties.wallet.address
 }
 
 Client.prototype.getWalletProperties = function (callback) {
   var self = this
 
-  var path
+  var errP, path
 
   if (typeof callback !== 'function') throw new Error('missing callback parameter')
-  if ((!self.state.properties) || (!self.state.properties.wallet)) {
-    throw new Error('Ledger client initialization incomplete.')
-  }
+
+  errP = (!self.state.properties) || (!self.state.properties.wallet)
+  self._log('getWalletProperties', { errP: errP })
+  if (errP) throw new Error('Ledger client initialization incomplete.')
 
   path = '/v1/wallet/' + self.state.properties.wallet.paymentId
   self._roundTrip({ path: path, method: 'GET' }, function (err, response, body) {
@@ -100,19 +112,27 @@ Client.prototype.getWalletProperties = function (callback) {
 }
 
 Client.prototype.getVerificationURL = function () {
-  if ((!this.state.properties) || (!this.state.properties.wallet)) {
-    throw new Error('Ledger client initialization incomplete.')
-  }
+  var errP = (!this.state.properties) || (!this.state.properties.wallet)
+
+  this._log('getVerificationURL', { errP: errP })
+  if (errP) throw new Error('Ledger client initialization incomplete.')
 
   return url.format(underscore.pick(this.options.server, 'protocol', 'hostname', 'port')) +
            '/v1/oauth/bitgo/' + this.state.properties.wallet.paymentId
 }
 
 Client.prototype.isReadyToReconcile = function () {
-  var now = underscore.now()
+  var delayTime
 
-  if (!this.state.reconcileStamp) throw new Error('Ledger client initialization incomplete.')
-  return (this.state.reconcileStamp <= now)
+  if (!this.state.reconcileStamp) {
+    this._log('isReadyToReconcile', { errP: true })
+    throw new Error('Ledger client initialization incomplete.')
+  }
+
+  delayTime = this.state.reconcileStamp - underscore.now()
+  this._log('isReadyToReconcile', { delayTime: delayTime })
+
+  return (delayTime <= 0)
 }
 
 Client.prototype.reconcile = function (report, callback) {
@@ -125,21 +145,31 @@ Client.prototype.reconcile = function (report, callback) {
     report = null
   }
   if (typeof callback !== 'function') throw new Error('missing callback parameter')
-  if (!this.state.reconcileStamp) throw new Error('Ledger client initialization incomplete.')
-  if (self.state.properties.setting === 'adFree') {
-    if (!report) throw new Error('missing report parameter')
 
-    schema = Joi.array().items(Joi.object().keys(
-               { site: Joi.string().required(), weight: Joi.number().positive().required() }
-             )).min(1)
+  try {
+    if (!self.state.reconcileStamp) throw new Error('Ledger client initialization incomplete.')
+    if (self.state.properties.setting === 'adFree') {
+      if (!report) throw new Error('missing report parameter')
 
-    validity = Joi.validate(report, schema)
-    if (validity.error) throw new Error(validity.error)
+      schema = Joi.array().items(Joi.object().keys(
+                 { site: Joi.string().required(), weight: Joi.number().positive().required() }
+               )).min(1)
+
+      validity = Joi.validate(report, schema)
+      if (validity.error) throw new Error(validity.error)
+    }
+  } catch (ex) {
+    this._log('reconcile', { errP: true })
+    throw ex
   }
 
   delayTime = this.state.reconcileStamp - underscore.now()
-  if (delayTime > 0) return callback(null, null, delayTime)
+  if (delayTime > 0) {
+    this._log('reconcile', { delayTime: delayTime })
+    return callback(null, null, delayTime)
+  }
 
+  this._log('reconcile', { setting: self.state.properties.setting })
   if (self.state.properties.setting !== 'adFree') {
     throw new Error('setting not (yet) supported: ' + self.state.properties.setting)
   }
@@ -154,6 +184,7 @@ Client.prototype.reconcile = function (report, callback) {
     self._roundTrip({ path: path, method: 'GET' }, function (err, response, body) {
       var payload
 
+      self._log('reconcile', { method: 'GET', path: '/v1/wallet/...', errP: !!err })
       if (err) return callback(err)
 
       if (body.balance < self.state.properties.fee) return callback(new Error('insufficient funds'))
@@ -161,6 +192,7 @@ Client.prototype.reconcile = function (report, callback) {
       path = '/v1/wallet/' + self.state.properties.wallet.paymentId
       payload = { amount: self.state.properties.fee, surveyorId: surveyorInfo.surveyorId }
       self._roundTrip({ path: path, method: 'PUT', payload: payload }, function (err, response, body) {
+        self._log('reconcile', { method: 'PUT', path: '/v1/wallet/...', errP: !!err })
         if (err) return callback(err)
 
         self.state.pollTransaction = underscore.defaults(body, { report: report, stamp: self.state.reconcileStamp,
@@ -172,6 +204,13 @@ Client.prototype.reconcile = function (report, callback) {
       })
     })
   })
+}
+
+Client.prototype.report = function () {
+  var entries = this.logging
+
+  this.logging = []
+  return (entries.length > 0 ? entries : '')
 }
 
 /*
@@ -189,6 +228,7 @@ Client.prototype._registerPersona = function (callback) {
   self._roundTrip({ path: path, method: 'GET' }, function (err, response, body) {
     var credential, payload, persona
 
+    self._log('registerPersona', { method: 'GET', path: path, errP: !!err })
     if (err) return callback(err)
 
     persona = underscore.defaults(body, { server: self.options.server })
@@ -198,6 +238,7 @@ Client.prototype._registerPersona = function (callback) {
     path = '/v1/registrar/persona/' + self.state.personaId
     try { payload = { proof: credential.request() } } catch (ex) { return callback(ex) }
     self._roundTrip({ path: path, method: 'POST', payload: payload }, function (err, response, body) {
+      self._log('registerPersona', { method: 'POST', path: '/v1/registrar/persona/...', errP: !!err })
       if (err) return callback(err)
 
       try { credential.finalize(body.verification) } catch (ex) { return callback(ex) }
@@ -218,6 +259,7 @@ Client.prototype._prepareWallet = function (callback) {
     var delayTime, now, validity
     var schema = Joi.number().positive().required()
 
+    self._log('prepareWallet', { method: 'GET', path: '/v1/surveyor/wallet/current/...', errP: !!err })
     if (err) return callback(err)
 
     self.state.prepareWallet = underscore.defaults(body, { server: self.options.server })
@@ -228,6 +270,7 @@ Client.prototype._prepareWallet = function (callback) {
     delayTime = self._backOff(randomInt(0, self.state.prepareWallet.payload.adFree.pays || 30))
     self.state.delayStamp = now + delayTime
 
+    self._log('prepareWallet', { delayTime: delayTime })
     callback(null, self.state, delayTime)
   })
 }
@@ -241,6 +284,7 @@ Client.prototype._commitWallet = function (callback) {
   path = '/v1/surveyor/wallet/' + encodeURIComponent(surveyor.parameters.surveyorId)
   try { payload = { proof: self.credentials.persona.submit(surveyor) } } catch (ex) { return callback(ex) }
   self._roundTrip({ path: path, method: 'PUT', payload: payload }, function (err, response, body) {
+    self._log('commitWallet', { method: 'PUT', path: '/v1/surveyor/wallet/...', errP: !!err })
     if (err) return callback(err)
 
     self.state.properties = underscore.extend({ setting: 'adFree',
@@ -263,6 +307,7 @@ Client.prototype._registerWallet = function (callback) {
   self._roundTrip({ path: path, method: 'GET' }, function (err, response, body) {
     var credential, payload, wallet
 
+    self._log('registerWallet', { method: 'GET', path: path, errP: !!err })
     if (err) return callback(err)
 
     wallet = underscore.defaults(body, { server: self.options.server })
@@ -272,6 +317,7 @@ Client.prototype._registerWallet = function (callback) {
     path = '/v1/registrar/wallet/' + self.state.properties.wallet.paymentId
     try { payload = { proof: credential.request() } } catch (ex) { return callback(ex) }
     self._roundTrip({ path: path, method: 'POST', payload: payload }, function (err, response, body) {
+      self._log('registerWallet', { method: 'POST', path: '/v1/registrar/wallet/...', errP: !!err })
       if (err) return callback(err)
 
       try { credential.finalize(body.verification) } catch (ex) { return callback(ex) }
@@ -293,6 +339,7 @@ Client.prototype._prepareTransaction = function (callback) {
   self._roundTrip({ path: path, method: 'GET' }, function (err, response, body) {
     var delayTime, now
 
+    self._log('prepareTransaction', { method: 'GET', path: '/v1/wallet/...', errP: !!err })
     if (err) return callback(err)
 
     if ((!body.lastPaymentStamp) || (body.lastPaymentStamp < self.state.pollTransaction.stamp)) {
@@ -308,6 +355,7 @@ Client.prototype._prepareTransaction = function (callback) {
     delayTime = self._backOff(randomInt(0, 1))
     self.state.delayStamp = now + delayTime
 
+    self._log('prepareTransaction', { delayTime: delayTime })
     callback(null, self.state, delayTime)
   })
 }
@@ -323,6 +371,7 @@ Client.prototype._submitTransaction = function (callback) {
     payload = { proof: self.credentials.wallet.submit(surveyor, { report: self.state.prepareTransaction.report }) }
   } catch (ex) { return callback(ex) }
   self._roundTrip({ path: path, method: 'PUT', payload: payload }, function (err, response, body) {
+    self._log('submitTransaction', { method: 'PUT', path: '/v1/surveyor/browsing/...', errP: !!err })
     if (err) return callback(err)
 
     delete self.state.prepareTransaction
@@ -333,6 +382,10 @@ Client.prototype._submitTransaction = function (callback) {
 
 Client.prototype._backOff = function (days) {
   return (this.options.debugP ? 1 : days * 86400) * 1000
+}
+
+Client.prototype._log = function (who, args) {
+  if (this.options.loggingP) this.logging.push({ timestamp: underscore.now(), who: who, args: args || {} })
 }
 
 // round-trip to the ledger
