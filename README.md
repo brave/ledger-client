@@ -1,6 +1,11 @@
 # ledger-client
 An example of client code for the [Brave ledger](https://github.com/brave/ledger).
 
+**NOTE WELL:**
+you must have CMake installed. The easiest way to do this is:
+
+        npm install -g install-cmake
+
 ## API
 
 To begin:
