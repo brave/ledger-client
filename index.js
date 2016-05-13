@@ -11,8 +11,8 @@ var Client = function (personaId, options, state, callback) {
 
   var self = this
 
-  self.options = underscore.defaults(options || {}
-                                   , { server: 'https://ledger.brave.com', debugP: false, loggingP: false, verboseP: false })
+  self.options = underscore.defaults(options || {},
+                                    { server: 'https://ledger.brave.com', debugP: false, loggingP: false, verboseP: false })
   self.state = underscore.defaults(state || {}, { personaId: personaId })
   self.logging = []
 
@@ -282,7 +282,10 @@ Client.prototype._commitWallet = function (callback) {
   var surveyor = new anonize.Surveyor(self.state.prepareWallet)
 
   path = '/v1/surveyor/wallet/' + encodeURIComponent(surveyor.parameters.surveyorId)
-  try { payload = { proof: self.credentials.persona.submit(surveyor) } } catch (ex) { return callback(ex) }
+  try {
+    payload = { proof: self.credentials.persona.submit(surveyor,
+                                                       self.options.wallet ? { wallet: self.options.wallet } : {}) }
+  } catch (ex) { return callback(ex) }
   self._roundTrip({ path: path, method: 'PUT', payload: payload }, function (err, response, body) {
     self._log('commitWallet', { method: 'PUT', path: '/v1/surveyor/wallet/...', errP: !!err })
     if (err) return callback(err)
@@ -385,7 +388,7 @@ Client.prototype._backOff = function (days) {
 }
 
 Client.prototype._log = function (who, args) {
-  if (this.options.loggingP) this.logging.push({ timestamp: underscore.now(), who: who, args: args || {} })
+  if (this.options.loggingP) this.logging.push({ who: who, what: args || {}, when: underscore.now() })
 }
 
 // round-trip to the ledger

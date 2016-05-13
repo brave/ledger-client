@@ -48,7 +48,7 @@ while (argv.length > 0) {
 
   if (argv[0] === '-f') configFile = argv[1]
   else if (argv[0] === '-s') server = argv[1]
-  else if (argv[0] === '-p') personaID = argv[1]
+  else if (argv[0] === '-p') personaID = argv[1].toLowerCase()
   else usage()
 
   argv = argv.slice(2)
@@ -87,8 +87,8 @@ var callback = function (err, result, delayTime) {
 fs.readFile(personaID ? '/dev/null' : configFile, { encoding: 'utf8' }, function (err, data) {
   var state = err ? null : data ? JSON.parse(data) : {}
 
-  client = require('./index.js')(personaID, { server: server, debugP: debugP, loggingP: loggingP, verboseP: verboseP }, state
-                                , callback)
+  client = require('./index.js')(personaID, { server: server, debugP: debugP, loggingP: loggingP, verboseP: verboseP }, state,
+                                 callback)
 })
 
 /*
