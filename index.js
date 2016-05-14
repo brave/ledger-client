@@ -12,7 +12,7 @@ var Client = function (personaId, options, state, callback) {
   var self = this
 
   self.options = underscore.defaults(options || {},
-                                    { server: 'https://ledger.brave.com', debugP: false, loggingP: false, verboseP: false })
+                                     { server: 'https://ledger.brave.com', debugP: false, loggingP: false, verboseP: false })
   self.state = underscore.defaults(state || {}, { personaId: personaId })
   self.logging = []
 
@@ -195,7 +195,8 @@ Client.prototype.reconcile = function (report, callback) {
         self._log('reconcile', { method: 'PUT', path: '/v1/wallet/...', errP: !!err })
         if (err) return callback(err)
 
-        self.state.pollTransaction = underscore.defaults(body, { report: report, stamp: self.state.reconcileStamp,
+        self.state.pollTransaction = underscore.defaults(body, { report: report,
+                                                                 stamp: self.state.reconcileStamp,
                                                                  surveyorInfo: surveyorInfo,
                                                                  server: self.options.server })
         self.state.reconcileStamp = underscore.now() + self._backOff(self.state.properties.days)
@@ -293,8 +294,8 @@ Client.prototype._commitWallet = function (callback) {
     self.state.properties = underscore.extend({ setting: 'adFree',
                                                 fee: self.state.prepareWallet.payload.adFree.fee,
                                                 days: self.state.prepareWallet.payload.adFree.days || 30,
-                                                configuration: self.state.prepareWallet.payload },
-                                              underscore.pick(body, 'wallet'))
+                                                configuration: self.state.prepareWallet.payload
+                                              }, underscore.pick(body, 'wallet'))
     delete self.state.prepareWallet
 
     callback(null, self.state, 100)

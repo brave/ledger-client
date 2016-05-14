@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "blastoff": "DEBUG=*,-babel ./blastoff.js -d -l -v -s http://127.0.0.1:3001 -p `uuidgen`",
+    "blastoff-byow": "DEBUG=*,-babel ./blastoff.js -d -l -v -s http://127.0.0.1:3001 -p `uuidgen` -w wallet.json",
     "blastoff-integration": "DEBUG=*,-babel ./blastoff.js -d -l -v -s https://ledger-integration.brave.com -p `uuidgen`",
     "test": "npm run test-security",
     "test-security": "nsp check"

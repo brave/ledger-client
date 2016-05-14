@@ -44,8 +44,23 @@ where the value for `personaId` is the property of the same name associated with
 [Brave Vault client endpoint](https://github.com/brave/vault-client#vault-properties),
 and `options` is:
 
-        { server   : 'https://ledger-staging.brave.com'
-        , verboseP : false
+        // all properties are optional...
+        { server            : 'https://ledger-staging.brave.com'
+        , debugP            : false
+        , loggingP          : false
+        , verboseP          : false
+        , wallet            :
+          { // the address/provider properties must be present, if the wallet property is present
+            address         : 'BTC address'
+          , provider        : 'coinbase'
+          , credentials     :
+            { access_token  : '...'
+            , token_type    : 'bearer'
+            , expires_in    : ...
+            , refresh_token : '...'
+            , scope         : 'wallet:accounts:read'
+            }
+          }
         }
 
 and `state` is either: whatever was previously stored in persistent storage, or `{}`.

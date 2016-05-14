@@ -17,13 +17,14 @@ var usage = function () {
   process.exit(1)
 }
 
-var server
+var options, server
 var argv = process.argv.slice(2)
 var configFile = process.env.CONFIGFILE
 var personaID = process.env.PERSONA
 var debugP = process.env.DEBUG || false
 var loggingP = process.env.LOGGING || false
 var verboseP = process.env.VERBOSE || false
+var walletFile = process.env.WALLETFILE
 
 while (argv.length > 0) {
   if (argv[0].indexOf('-') !== 0) break
@@ -49,15 +50,20 @@ while (argv.length > 0) {
   if (argv[0] === '-f') configFile = argv[1]
   else if (argv[0] === '-s') server = argv[1]
   else if (argv[0] === '-p') personaID = argv[1].toLowerCase()
+  else if (argv[0] === '-w') walletFile = argv[1]
   else usage()
 
   argv = argv.slice(2)
 }
 if ((!configFile) && (!personaID)) usage()
 if(!configFile) configFile = 'config.json'
+
 if (!server) server = process.env.SERVER || 'https://ledger-staging.brave.com'
 if (server.indexOf('http') !== 0) server = 'https://' + server
 server = url.parse(server)
+
+options = { server: server, debugP: debugP, loggingP: loggingP, verboseP: verboseP }
+if (walletFile) options.wallet = JSON.parse(fs.readFileSync(walletFile))
 
 /*
  *
@@ -87,8 +93,7 @@ var callback = function (err, result, delayTime) {
 fs.readFile(personaID ? '/dev/null' : configFile, { encoding: 'utf8' }, function (err, data) {
   var state = err ? null : data ? JSON.parse(data) : {}
 
-  client = require('./index.js')(personaID, { server: server, debugP: debugP, loggingP: loggingP, verboseP: verboseP }, state,
-                                 callback)
+  client = require('./index.js')(personaID, options, state, callback)
 })
 
 /*
