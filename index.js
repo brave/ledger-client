@@ -187,7 +187,9 @@ Client.prototype.reconcile = function (report, callback) {
       self._log('reconcile', { method: 'GET', path: '/v1/wallet/...', errP: !!err })
       if (err) return callback(err)
 
-      if (body.balance < self.state.properties.fee) return callback(new Error('insufficient funds'))
+      if ((body.mode === 'internal') && (body.balance < self.state.properties.fee)) {
+        return callback(new Error('insufficient funds'))
+      }
 
       path = '/v1/wallet/' + self.state.properties.wallet.paymentId
       payload = { amount: self.state.properties.fee, surveyorId: surveyorInfo.surveyorId }
@@ -199,6 +201,13 @@ Client.prototype.reconcile = function (report, callback) {
                                                                  stamp: self.state.reconcileStamp,
                                                                  surveyorInfo: surveyorInfo,
                                                                  server: self.options.server })
+        if (body.paymentURL) {
+          self.state.thisPayment = { paymentURL: body.paymentURL,
+                                     reconcileId: surveyorInfo.surveyorId,
+                                     paymentStamp: self.state.reconcileStamp
+                                   }
+          delete body.paymentURL
+        }
         self.state.reconcileStamp = underscore.now() + self._backOff(self.state.properties.days)
 
         callback(null, self.state, 100)
