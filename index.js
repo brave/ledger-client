@@ -180,19 +180,25 @@ Client.prototype.reconcile = function (report, callback) {
 
     if (err) return callback(err)
 
-    path = '/v1/wallet/' + self.state.properties.wallet.paymentId
+    path = '/v1/wallet/' + self.state.properties.wallet.paymentId + '?currency=' + self.state.properties.fee.currency
     self._roundTrip({ path: path, method: 'GET' }, function (err, response, body) {
-      var payload
+      var amount, btc, currency, payload
 
       self._log('reconcile', { method: 'GET', path: '/v1/wallet/...', errP: !!err })
       if (err) return callback(err)
 
-      if ((body.mode === 'internal') && (body.balance < self.state.properties.fee)) {
-        return callback(new Error('insufficient funds'))
+      if (body.mode === 'internal') {
+        amount = self.state.properties.fee.amount
+        currency = self.state.properties.fee.currency
+
+        if (!body.rates[currency]) return callback(new Error(currency + ' no longer supported by the ledger'))
+
+        btc = (amount / body.rates[currency]).toFixed(4)
+        if (body.balance < btc) return callback(new Error('insufficient funds'))
       }
 
       path = '/v1/wallet/' + self.state.properties.wallet.paymentId
-      payload = { amount: self.state.properties.fee, surveyorId: surveyorInfo.surveyorId }
+      payload = underscore.extend({ surveyorId: surveyorInfo.surveyorId }, self.state.properties.fee)
       self._roundTrip({ path: path, method: 'PUT', payload: payload }, function (err, response, body) {
         self._log('reconcile', { method: 'PUT', path: '/v1/wallet/...', errP: !!err })
         if (err) return callback(err)
@@ -267,7 +273,7 @@ Client.prototype._prepareWallet = function (callback) {
   path = '/v1/surveyor/wallet/current/' + self.state.personaId
   self._roundTrip({ path: path, method: 'GET' }, function (err, response, body) {
     var delayTime, now, validity
-    var schema = Joi.number().positive().required()
+    var schema = Joi.object({}).pattern(/[A-Z][A-Z][A-Z]/, Joi.number().positive()).unknown(true).required()
 
     self._log('prepareWallet', { method: 'GET', path: '/v1/surveyor/wallet/current/...', errP: !!err })
     if (err) return callback(err)
@@ -297,11 +303,22 @@ Client.prototype._commitWallet = function (callback) {
                                                        self.options.wallet ? { wallet: self.options.wallet } : {}) }
   } catch (ex) { return callback(ex) }
   self._roundTrip({ path: path, method: 'PUT', payload: payload }, function (err, response, body) {
+    var currency, fee
+
     self._log('commitWallet', { method: 'PUT', path: '/v1/surveyor/wallet/...', errP: !!err })
     if (err) return callback(err)
 
+    currency = (self.options.wallet && self.options.wallet.currency) || 'USD'
+    if (!self.state.prepareWallet.payload.adFree.fee[currency]) {
+      if (!self.state.prepareWallet.payload.adFree.fee.USD) {
+        return callback(new Error('neither ' + currency + ' nor USD are supported by the ledger'))
+      }
+      currency = 'USD'
+    }
+    fee = { currency: currency, amount: self.state.prepareWallet.payload.adFree.fee[currency] }
+
     self.state.properties = underscore.extend({ setting: 'adFree',
-                                                fee: self.state.prepareWallet.payload.adFree.fee,
+                                                fee: fee,
                                                 days: self.state.prepareWallet.payload.adFree.days || 30,
                                                 configuration: self.state.prepareWallet.payload
                                               }, underscore.pick(body, 'wallet'))
@@ -348,7 +365,7 @@ Client.prototype._prepareTransaction = function (callback) {
 
   var path
 
-  path = '/v1/wallet/' + self.state.properties.wallet.paymentId
+  path = '/v1/wallet/' + self.state.properties.wallet.paymentId + '?currency=' + self.state.properties.fee.currency
   self._roundTrip({ path: path, method: 'GET' }, function (err, response, body) {
     var delayTime, now
 

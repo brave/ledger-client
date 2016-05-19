@@ -22,6 +22,10 @@ if `err` is `null`, and `result` is not `null`, then `result` must be put into p
 then the operation has succeeded,
 regardless of whether `result` is defined or not.)
 
+    If `result.thisPayment` is present,
+then the user should be directed to the URL `result.thisPayment.paymentURL` --
+this allows the use of an external wallet for `adFree` behavior.
+
 - The [Ledger protocol](https://github.com/brave/ledger/tree/master/documentation/Ledger-Principles.md)
 requires that the client uses a pseudo-random delay be introduced at certain points during operations.
 Accordingly,
@@ -50,7 +54,7 @@ and `options` is:
         , loggingP          : false
         , verboseP          : false
         , wallet            :
-          { // the address/provider properties must be present, if the wallet property is present
+          { // if the wallet property is present, then the address and provider properties must be present
             address         : 'BTC address'
           , provider        : 'coinbase'
           , credentials     :

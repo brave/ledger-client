@@ -3,7 +3,6 @@
 var fs = require('fs')
 var path = require('path')
 var url = require('url')
-var uuid = require('node-uuid')
 
 /*
  *
@@ -13,7 +12,7 @@ var uuid = require('node-uuid')
 
 var usage = function () {
   console.log('usage: node ' + path.basename(process.argv[1]) +
-              ' [ -d ] [ -f file | -p personaID] [ -l ] [ -s https://... ] [ -v ] ' + command)
+              ' [ -d ] [ -f file | -p personaID] [ -l ] [ -s https://... ] [ -v ]')
   process.exit(1)
 }
 
@@ -56,7 +55,7 @@ while (argv.length > 0) {
   argv = argv.slice(2)
 }
 if ((!configFile) && (!personaID)) usage()
-if(!configFile) configFile = 'config.json'
+if (!configFile) configFile = 'config.json'
 
 if (!server) server = process.env.SERVER || 'https://ledger-staging.brave.com'
 if (server.indexOf('http') !== 0) server = 'https://' + server
