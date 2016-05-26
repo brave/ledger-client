@@ -1,8 +1,8 @@
 var anonize = require('node-anonize2-relic')
-var crypto = require('crypto')
 var http = require('http')
 var https = require('https')
 var Joi = require('joi')
+var random = require('random-lib')
 var underscore = require('underscore')
 var url = require('url')
 
@@ -152,7 +152,7 @@ Client.prototype.reconcile = function (report, callback) {
       if (!report) throw new Error('missing report parameter')
 
       schema = Joi.array().items(Joi.object().keys(
-                 { site: Joi.string().required(), weight: Joi.number().positive().required() }
+                 { publisher: Joi.string().required(), weight: Joi.number().positive().required() }
                )).min(1)
 
       validity = Joi.validate(report, schema)
@@ -283,7 +283,7 @@ Client.prototype._prepareWallet = function (callback) {
     if (validity.error) throw new Error(validity.error)
 
     now = underscore.now()
-    delayTime = self._backOff(randomInt(0, self.state.prepareWallet.payload.adFree.pays || 30))
+    delayTime = self._backOff(random.randomInt({ min: 0, max: self.state.prepareWallet.payload.adFree.pays || 30 }))
     self.state.delayStamp = now + delayTime
 
     self._log('prepareWallet', { delayTime: delayTime })
@@ -373,7 +373,7 @@ Client.prototype._prepareTransaction = function (callback) {
     if (err) return callback(err)
 
     if ((!body.lastPaymentStamp) || (body.lastPaymentStamp < self.state.pollTransaction.stamp)) {
-      return callback(null, null, randomInt(0, 10 * 60 * 1000))
+      return callback(null, null, random.randomInt({ min: 0, max: 10 * 60 * 1000 }))
     }
 
     self.state.prepareTransaction = underscore.defaults(underscore.pick(self.state.pollTransaction,
@@ -382,7 +382,7 @@ Client.prototype._prepareTransaction = function (callback) {
     delete self.state.pollTransaction
 
     now = underscore.now()
-    delayTime = self._backOff(randomInt(0, 1))
+    delayTime = self._backOff(random.randomInt({min: 0, max: 1}))
     self.state.delayStamp = now + delayTime
 
     self._log('prepareTransaction', { delayTime: delayTime })
@@ -464,44 +464,6 @@ Client.prototype._roundTrip = function (options, callback) {
 
   console.log('<<< ' + options.method + ' ' + options.path)
   if (options.payload) console.log('<<< ' + JSON.stringify(options.payload, null, 2).split('\n').join('\n<<< '))
-}
-
-/*
- *
- * utility functions
- *
- */
-
-// based on https://github.com/EFForg/OpenWireless/pull/195/files#diff-8cddc026f79ea9a8ce95eb6112cc3a50R57
-
-var randomInt = function (min, max) {
-  var rval = 0
-  var range = max - min
-
-  var bits_needed = Math.ceil(Math.log2(range))
-  if (bits_needed > 53) throw new Error('We cannot generate numbers larger than 53 bits.')
-  var bytes_needed = Math.ceil(bits_needed / 8)
-  var mask = Math.pow(2, bits_needed) - 1
-  // 7776 -> (2^13 = 8192) -1 == 8191 or 0x00001111 11111111
-
-  // Create byte array and fill with N random numbers
-  var byteArray = crypto.randomBytes(bytes_needed)
-
-  var p = (bytes_needed - 1) * 8
-  for (var i = 0; i < bytes_needed; i++) {
-    rval += byteArray[i] * Math.pow(2, p)
-    p -= 8
-  }
-
-  // Use & to apply the mask and reduce the number of recursive lookups
-  rval = rval & mask
-
-  if (rval >= range) {
-    // Integer out of acceptable range
-    return randomInt(min, max)
-  }
-  // Return an integer that falls within the range
-  return min + rval
 }
 
 module.exports = Client

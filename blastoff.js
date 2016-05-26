@@ -107,7 +107,7 @@ fs.readFile(personaID ? '/dev/null' : configFile, { encoding: 'utf8' }, function
 var reconcileP = false
 
 var run = function (delayTime) {
-  var report = [ { site: 'wsj.com', weight: 100 } ]
+  var report = [ { publisher: 'wsj.com', weight: 100 } ]
 
   if (delayTime > 0) return setTimeout(function () { if (client.sync(callback)) return run(0) }, delayTime)
 

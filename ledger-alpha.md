@@ -54,3 +54,11 @@ if the `callback` function is invoked with a non-null `result` parameter having 
 then the user should be directed to the URL `result.thisPayment.paymentURL` --
 __note that this URL has a short lifetime associated with it,
 so when it is returned, the browser needs to encourage the user accordingly!__
+
+### Publisher Report
+
+    var report = underscore.filter(underscore.map(synopsis.topN(), function (entry) {
+                                     return underscore.pick(entry, [ 'publisher', 'weight' ])
+                                 }), function (entry) { return entry.weight })
+
+    client.reconcile({ report: report }, callback)

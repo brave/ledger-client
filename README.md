@@ -127,10 +127,10 @@ For the `report` parameter, the associated [JSON schema](http://json-schema.org/
             , "items":
               { "type": "object"
               , "properties":
-                { "site": { "type": "string", "format": "uri" }
+                { "publisher": { "type": "string", "format": "uri" }
                 , "weight": { "type": "number" }
                 }
-              , "required": [ "site", "weight" ]
+              , "required": [ "publisher", "weight" ]
               }
             }
           }
