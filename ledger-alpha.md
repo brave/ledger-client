@@ -59,6 +59,6 @@ so when it is returned, the browser needs to encourage the user accordingly!__
 
     var report = underscore.filter(underscore.map(synopsis.topN(), function (entry) {
                                      return underscore.pick(entry, [ 'publisher', 'weight' ])
-                                 }), function (entry) { return entry.weight })
+                                   }), function (entry) { return entry.weight })
 
     client.reconcile({ report: report }, callback)
