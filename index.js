@@ -2,6 +2,7 @@ var anonize = require('node-anonize2-relic')
 var http = require('http')
 var https = require('https')
 var Joi = require('joi')
+var ledgerPublisher = require('ledger-publisher')
 var random = require('random-lib')
 var underscore = require('underscore')
 var url = require('url')
@@ -25,6 +26,12 @@ Client.prototype.sync = function (callback) {
   var delayTime
 
   if (typeof callback !== 'function') throw new Error('missing callback parameter')
+
+  if (!self.state.ruleset) {
+    self.state.ruleset = ledgerPublisher.rules
+
+    self._updateRules(function (err) { if (err) console.log(err) })
+  }
 
   if (self.state.delayStamp) {
     delayTime = this.state.delayStamp - underscore.now()
@@ -216,7 +223,11 @@ Client.prototype.reconcile = function (report, callback) {
         }
         self.state.reconcileStamp = underscore.now() + self._backOff(self.state.properties.days)
 
-        callback(null, self.state, 100)
+        self._updateRules(function (err) {
+          if (err) console.log(err)
+
+          callback(null, self.state, 100)
+        })
       })
     })
   })
@@ -416,6 +427,30 @@ Client.prototype._backOff = function (days) {
 
 Client.prototype._log = function (who, args) {
   if (this.options.loggingP) this.logging.push({ who: who, what: args || {}, when: underscore.now() })
+}
+
+Client.prototype._updateRules = function (callback) {
+  var path
+  var self = this
+
+  path = '/v1/publisher/ruleset'
+  self._roundTrip({ path: path, method: 'GET' }, function (err, response, ruleset) {
+    var validity
+
+    self._log('reconcile', { method: 'GET', path: '/v1/publisher/ruleset', errP: !!err })
+    if (err) return callback(err)
+
+    validity = Joi.validate(ruleset, ledgerPublisher.schema)
+    if (validity.error) return callback(new Error(validity.error))
+
+    if (!underscore.isEqual(self.state.ruleset || [], ruleset)) {
+      self.state.ruleset = ruleset
+
+      ledgerPublisher.rules = ruleset
+    }
+
+    callback()
+  })
 }
 
 // round-trip to the ledger
