@@ -201,7 +201,16 @@ Client.prototype.reconcile = function (report, callback) {
         if (!body.rates[currency]) return callback(new Error(currency + ' no longer supported by the ledger'))
 
         btc = (amount / body.rates[currency]).toFixed(4)
-        if (body.balance < btc) return callback(new Error('insufficient funds'))
+        if (body.balance < btc) {
+          self.state.thisPayment = { paymentURL: 'bitcoin:' + self.state.properties.wallet.address + '?amount=' + btc,
+                                     address: self.state.properties.wallet.address,
+                                     btc: btc,
+                                     amount: amount,
+                                     currency: currency
+                                   }
+
+          return callback(null, self.state, 100)
+        }
       }
 
       path = '/v1/wallet/' + self.state.properties.wallet.paymentId
