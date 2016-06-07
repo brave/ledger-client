@@ -14,7 +14,8 @@ var Client = function (personaId, options, state, callback) {
 
   self.options = underscore.defaults(options || {},
                                      { server: 'https://ledger.brave.com', debugP: false, loggingP: false, verboseP: false })
-  self.state = underscore.defaults(state || {}, { personaId: personaId })
+  if (typeof self.options.server === 'string') self.options.server = url.parse(self.options.server)
+  self.state = underscore.defaults(state || {}, { personaId: personaId, options: self.options })
   self.logging = []
 
   return self.sync(callback)
