@@ -96,7 +96,8 @@ var callback = function (err, result, delayTime) {
 fs.readFile(personaID ? '/dev/null' : configFile, { encoding: 'utf8' }, function (err, data) {
   var state = err ? null : data ? JSON.parse(data) : {}
 
-  client = require('./index.js')(personaID, options, state, callback)
+  client = require('./index.js')(personaID, options, state)
+  client.sync(callback)
 })
 
 /*

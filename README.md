@@ -42,7 +42,8 @@ it will be a no-op.
 ### Creating an Endpoint
 
         var Client = require('ledger-client')
-        this.client = new Client(personaId, options, state, callback)
+        this.client = new Client(personaId, options, state)
+        this.client.sync(callback)
 
 where the value for `personaId` is the property of the same name associated with a
 [Brave Vault client endpoint](https://github.com/brave/vault-client#vault-properties),
@@ -69,7 +70,7 @@ and `options` is:
 
 and `state` is either: whatever was previously stored in persistent storage, or `{}`.
 
-The  client endpoint should not be referenced until the callback is invoked.
+The client endpoint should not be referenced until the callback is invoked.
 
 ### Bravery Properties
 To retrieve the Bravery properties for the Ledger,
