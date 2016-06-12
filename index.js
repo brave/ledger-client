@@ -55,9 +55,16 @@ Client.prototype.sync = function (callback) {
   self.credentials.wallet = new anonize.Credential(self.state.wallet)
 
   if (this.state.reconcileStamp) {
+    delayTime = random.randomInt({ min: 0, max: 10 * 60 * 1000 })
+
+    if ((this.state.pollTransaction) || (this.state.prepareTransaction)) {
+      this._log('sync', { reason: 'already reconciling', delayTime: delayTime, reconcileStamp: this.state.reconcileStamp })
+      return callback(null, null, delayTime)
+    }
+
     if ((underscore.now() - this.state.reconcileStamp) > 0) {
-      self._log('sync', { reason: 'next reconciliation', delayTime: 100 })
-      return callback(null, null, 100)
+      self._log('sync', { reason: 'next reconciliation', delayTime: delayTime, reconcileStamp: this.state.reconcileStamp })
+      return callback(null, null, delayTime)
     }
   }
 
@@ -142,6 +149,11 @@ Client.prototype.isReadyToReconcile = function () {
     throw new Error('Ledger client initialization incomplete.')
   }
 
+  if ((this.state.pollTransaction) || (this.state.prepareTransaction)) {
+    this._log('isReadyToReconcile', { reason: 'already reconciling', reconcileStamp: this.state.reconcileStamp })
+    return false
+  }
+
   delayTime = this.state.reconcileStamp - underscore.now()
   this._log('isReadyToReconcile', { delayTime: delayTime })
 
@@ -178,7 +190,12 @@ Client.prototype.reconcile = function (report, callback) {
 
   delayTime = this.state.reconcileStamp - underscore.now()
   if (delayTime > 0) {
-    this._log('reconcile', { delayTime: delayTime })
+    this._log('reconcile', { reason: 'not time to reconcile', delayTime: delayTime })
+    return callback(null, null, delayTime)
+  }
+  if ((this.state.pollTransaction) || (this.state.prepareTransaction)) {
+    delayTime = random.randomInt({ min: 0, max: 10 * 60 * 1000 })
+    this._log('reconcile', { reason: 'already reconciling', delayTime: delayTime, reconcileStamp: this.state.reconcileStamp })
     return callback(null, null, delayTime)
   }
 
