@@ -33,7 +33,7 @@ Client.prototype.sync = function (callback) {
   }
 
   if (self.state.delayStamp) {
-    delayTime = this.state.delayStamp - underscore.now()
+    delayTime = self.state.delayStamp - underscore.now()
     if (delayTime > 0) {
       self._log('sync', { reason: 'next event', delayTime: delayTime })
       return callback(null, null, delayTime)
@@ -54,22 +54,14 @@ Client.prototype.sync = function (callback) {
   if (!self.state.wallet) return self._registerWallet(callback)
   self.credentials.wallet = new anonize.Credential(self.state.wallet)
 
-  if (this.state.reconcileStamp) {
-    delayTime = random.randomInt({ min: 0, max: 10 * 60 * 1000 })
-
-    if ((this.state.pollTransaction) || (this.state.prepareTransaction)) {
-      this._log('sync', { reason: 'already reconciling', delayTime: delayTime, reconcileStamp: this.state.reconcileStamp })
-      return callback(null, null, delayTime)
-    }
-
-    if ((underscore.now() - this.state.reconcileStamp) > 0) {
-      self._log('sync', { reason: 'next reconciliation', delayTime: delayTime, reconcileStamp: this.state.reconcileStamp })
-      return callback(null, null, delayTime)
-    }
-  }
-
   if (self.state.pollTransaction) return self._prepareTransaction(callback)
   if (self.state.prepareTransaction) return self._submitTransaction(callback)
+
+  if ((self.state.reconcileStamp) && ((underscore.now() - self.state.reconcileStamp) > 0)) {
+    delayTime = random.randomInt({ min: 0, max: 10 * 60 * 1000 })
+    self._log('sync', { reason: 'next reconciliation', delayTime: delayTime, reconcileStamp: self.state.reconcileStamp })
+    return callback(null, null, delayTime)
+  }
 
   self._log('sync', { result: true })
   return true
