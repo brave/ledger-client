@@ -133,9 +133,7 @@ Client.prototype.getVerificationURL = function () {
            '/v1/oauth/bitgo/' + this.state.properties.wallet.paymentId
 }
 
-Client.prototype.isReadyToReconcile = function () {
-  var delayTime
-
+Client.prototype.timeUntilReconcile = function () {
   if (!this.state.reconcileStamp) {
     this._log('isReadyToReconcile', { errP: true })
     throw new Error('Ledger client initialization incomplete.')
@@ -146,10 +144,14 @@ Client.prototype.isReadyToReconcile = function () {
     return false
   }
 
-  delayTime = this.state.reconcileStamp - underscore.now()
-  this._log('isReadyToReconcile', { delayTime: delayTime })
+  return (this.state.reconcileStamp - underscore.now())
+}
 
-  return (delayTime <= 0)
+Client.prototype.isReadyToReconcile = function () {
+  var delayTime = this.timeUntilReconcile()
+
+  this._log('isReadyToReconcile', { delayTime: delayTime })
+  return ((typeof delayTime === 'boolean') ? delayTime : (delayTime <= 0))
 }
 
 Client.prototype.reconcile = function (report, callback) {
@@ -204,7 +206,7 @@ Client.prototype.reconcile = function (report, callback) {
 
     path = '/v1/wallet/' + self.state.properties.wallet.paymentId + '?currency=' + self.state.properties.fee.currency
     self._roundTrip({ path: path, method: 'GET' }, function (err, response, body) {
-      var amount, btc, currency, payload
+      var amount, btc, currency
 
       self._log('reconcile', { method: 'GET', path: '/v1/wallet/...', errP: !!err })
       if (err) return callback(err)
@@ -232,35 +234,7 @@ Client.prototype.reconcile = function (report, callback) {
         }
       }
 
-      path = '/v1/wallet/' + self.state.properties.wallet.paymentId
-      payload = underscore.extend({ surveyorId: surveyorInfo.surveyorId }, self.state.properties.fee)
-      self._roundTrip({ path: path, method: 'PUT', payload: payload }, function (err, response, body) {
-        self._log('reconcile', { method: 'PUT', path: '/v1/wallet/...', errP: !!err })
-        if (err) return callback(err)
-
-        self.state.pollTransaction = underscore.defaults(body, { report: report,
-                                                                 stamp: self.state.reconcileStamp,
-                                                                 surveyorInfo: surveyorInfo,
-                                                                 server: self.options.server })
-        if (self.options.debugP) self.state.pollTransaction.date = self.state.reconcileDate
-        if (body.paymentURL) {
-          self.state.thisPayment = { paymentURL: body.paymentURL,
-                                     reconcileId: surveyorInfo.surveyorId,
-                                     paymentStamp: self.state.reconcileStamp
-                                   }
-          if (self.options.debugP) self.state.thisPayment.paymentDate = self.state.reconcileDate
-          delete body.paymentURL
-        }
-        self.state.reconcileStamp = underscore.now() + self._backOff(self.state.properties.days)
-        if (self.options.debugP) self.state.reconcileDate = new Date(self.state.reconcileStamp)
-
-        self._updateRules(function (err) {
-          if (err) console.log(err)
-
-          self._log('reconcile', { delayTime: 100 })
-          callback(null, self.state, 100)
-        })
-      })
+      self._updateWallet({ report: report, surveyorInfo: surveyorInfo }, callback)
     })
   })
 }
@@ -269,7 +243,7 @@ Client.prototype.report = function () {
   var entries = this.logging
 
   this.logging = []
-  return (entries.length > 0 ? entries : '')
+  if (entries.length) return entries
 }
 
 /*
@@ -409,6 +383,44 @@ Client.prototype._registerWallet = function (callback) {
   })
 }
 
+Client.prototype._updateWallet = function (props, callback) {
+  var self = this
+  var path = '/v1/wallet/' + self.state.properties.wallet.paymentId
+  var surveyorInfo = props.surveyorInfo
+  var payload = underscore.extend({ surveyorId: surveyorInfo.surveyorId }, self.state.properties.fee)
+
+  self._roundTrip({ path: path, method: 'PUT', payload: payload }, function (err, response, body) {
+    self._log('reconcile', { method: 'PUT', path: '/v1/wallet/...', errP: !!err })
+    if (err) return callback(err)
+
+    if (!self.state.pollTransaction) {
+      self.state.pollTransaction = underscore.defaults(body, { report: props.report,
+                                                               stamp: self.state.reconcileStamp,
+                                                               surveyorInfo: surveyorInfo,
+                                                               server: self.options.server
+                                                             })
+      if (self.options.debugP) self.state.pollTransaction.date = self.state.reconcileDate
+    }
+    if (body.paymentInfo) {
+      self.state.thisPayment = underscore.extend(body.paymentInfo,
+                                                 { reconcileId: surveyorInfo.surveyorId,
+                                                   paymentStamp: self.state.reconcileStamp
+                                                 })
+      if (self.options.debugP) self.state.thisPayment.paymentDate = self.state.reconcileDate
+      delete body.paymentURL
+    }
+    self.state.reconcileStamp = underscore.now() + self._backOff(self.state.properties.days)
+    if (self.options.debugP) self.state.reconcileDate = new Date(self.state.reconcileStamp)
+
+    self._updateRules(function (err) {
+      if (err) console.log(err)
+
+      self._log('_updateWallet', { delayTime: 100 })
+      callback(null, self.state, 100)
+    })
+  })
+}
+
 Client.prototype._prepareTransaction = function (callback) {
   var self = this
 
@@ -416,7 +428,7 @@ Client.prototype._prepareTransaction = function (callback) {
 
   path = '/v1/wallet/' + self.state.properties.wallet.paymentId + '?currency=' + self.state.properties.fee.currency
   self._roundTrip({ path: path, method: 'GET' }, function (err, response, body) {
-    var delayTime, now
+    var delayTime, info, now
 
     self._log('_prepareTransaction', { method: 'GET', path: '/v1/wallet/...', errP: !!err })
     if (err) return callback(err)
@@ -427,7 +439,11 @@ Client.prototype._prepareTransaction = function (callback) {
                                          lastPaymentStamp: body.lastPaymentStamp,
                                          pollTransactionStamp: self.state.pollTransaction.stamp,
                                          delayTime: delayTime })
-      return callback(null, null, delayTime)
+
+      info = self.state.pollTransaction.paymentInfo
+      if ((!info) || (!info.infoExpires) || (info.infoExpires <= underscore.now())) return callback(null, null, delayTime)
+
+      return self._updateWallet(self.state.pollTransaction, callback)
     }
 
     self.state.prepareTransaction = underscore.defaults(underscore.pick(self.state.pollTransaction,

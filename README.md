@@ -98,7 +98,7 @@ indicating that persistent storage be updated.
         var address = this.client.getWalletAddress()
 
         this.client.getWalletProperties(function (err, properties) {
-            console.log('wallet balance=' + properties.balance + 'BTC')
+          console.log('wallet balance=' + properties.balance + 'BTC')
         })
 
         var redirectURL = this.client.getVerificationURL()
