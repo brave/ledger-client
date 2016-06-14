@@ -301,7 +301,7 @@ Client.prototype._prepareWallet = function (callback) {
     if (validity.error) throw new Error(validity.error)
 
     now = underscore.now()
-    delayTime = self._backOff(random.randomInt({ min: 0, max: self.state.prepareWallet.payload.adFree.pays || 30 }))
+    delayTime = self._backOff(random.randomInt({ min: 0, max: self.state.prepareWallet.payload.adFree.days || 30 }))
     self.state.delayStamp = now + delayTime
 
     self._log('_prepareWallet', { delayTime: delayTime })
