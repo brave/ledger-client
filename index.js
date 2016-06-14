@@ -373,9 +373,9 @@ Client.prototype._registerWallet = function (callback) {
       try { credential.finalize(body.verification) } catch (ex) { return callback(ex) }
       self.state.wallet = JSON.stringify(credential)
       self.state.bootStamp = underscore.now()
-      if (self.options.debugP) self.state.bootDate = new Date(self.state.bootStamp)
+      if (self.options.verboseP) self.state.bootDate = new Date(self.state.bootStamp)
       self.state.reconcileStamp = self.state.bootStamp + self._backOff(self.state.properties.days)
-      if (self.options.debugP) self.state.reconcileDate = new Date(self.state.reconcileStamp)
+      if (self.options.verboseP) self.state.reconcileDate = new Date(self.state.reconcileStamp)
 
       self._log('_registerWallet', { delayTime: 100 })
       callback(null, self.state, 100)
@@ -399,18 +399,18 @@ Client.prototype._updateWallet = function (props, callback) {
                                                                surveyorInfo: surveyorInfo,
                                                                server: self.options.server
                                                              })
-      if (self.options.debugP) self.state.pollTransaction.date = self.state.reconcileDate
+      if (self.options.verboseP) self.state.pollTransaction.date = self.state.reconcileDate
     }
     if (body.paymentInfo) {
       self.state.thisPayment = underscore.extend(body.paymentInfo,
                                                  { reconcileId: surveyorInfo.surveyorId,
                                                    paymentStamp: self.state.reconcileStamp
                                                  })
-      if (self.options.debugP) self.state.thisPayment.paymentDate = self.state.reconcileDate
+      if (self.options.verboseP) self.state.thisPayment.paymentDate = self.state.reconcileDate
       delete body.paymentURL
     }
     self.state.reconcileStamp = underscore.now() + self._backOff(self.state.properties.days)
-    if (self.options.debugP) self.state.reconcileDate = new Date(self.state.reconcileStamp)
+    if (self.options.verboseP) self.state.reconcileDate = new Date(self.state.reconcileStamp)
 
     self._updateRules(function (err) {
       if (err) console.log(err)
@@ -486,6 +486,7 @@ Client.prototype._backOff = function (days) {
 }
 
 Client.prototype._log = function (who, args) {
+  if (this.options.debugP) console.log(JSON.stringify({ who: who, what: args || {}, when: underscore.now() }, null, 2))
   if (this.options.loggingP) this.logging.push({ who: who, what: args || {}, when: underscore.now() })
 }
 
