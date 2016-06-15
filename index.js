@@ -24,7 +24,7 @@ Client.prototype.sync = function (callback) {
 
   var delayTime
 
-  if (typeof callback !== 'function') throw new Error('missing callback parameter')
+  if (typeof callback !== 'function') throw new Error('sync missing callback parameter')
 
   if (!self.state.ruleset) {
     self.state.ruleset = ledgerPublisher.rules
@@ -80,7 +80,7 @@ Client.prototype.setBraveryProperties = function (properties, callback) {
 
   var modifyP
 
-  if (typeof callback !== 'function') throw new Error('missing callback parameter')
+  if (typeof callback !== 'function') throw new Error('setBraveryProperties missing callback parameter')
 
   self._log('setBraveryProperties', { keys: underscore.keys(properties) })
 
@@ -109,7 +109,7 @@ Client.prototype.getWalletProperties = function (callback) {
 
   var errP, path
 
-  if (typeof callback !== 'function') throw new Error('missing callback parameter')
+  if (typeof callback !== 'function') throw new Error('getWalletProperties missing callback parameter')
 
   errP = (!self.state.properties) || (!self.state.properties.wallet)
   self._log('getWalletProperties', { errP: errP })
@@ -163,7 +163,7 @@ Client.prototype.reconcile = function (report, callback) {
     callback = report
     report = null
   }
-  if (typeof callback !== 'function') throw new Error('missing callback parameter')
+  if (typeof callback !== 'function') throw new Error('reconcile missing callback parameter')
 
   try {
     if (!self.state.reconcileStamp) throw new Error('Ledger client initialization incomplete.')
