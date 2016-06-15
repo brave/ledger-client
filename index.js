@@ -204,7 +204,9 @@ Client.prototype.reconcile = function (report, callback) {
 
     if (err) return callback(err)
 
-    path = '/v1/wallet/' + self.state.properties.wallet.paymentId + '?currency=' + self.state.properties.fee.currency
+    path = '/v1/wallet/' + self.state.properties.wallet.paymentId +
+             '?amount=' + self.state.properties.fee.amount +
+             '&currency=' + self.state.properties.fee.currency
     self._roundTrip({ path: path, method: 'GET' }, function (err, response, body) {
       var amount, btc, currency
 
@@ -222,15 +224,16 @@ Client.prototype.reconcile = function (report, callback) {
 
         btc = (amount / body.rates[currency]).toFixed(4)
         if (body.balance < btc) {
-          self.state.thisPayment = { paymentURL: 'bitcoin:' + self.state.properties.wallet.address + '?amount=' + btc,
-                                     address: self.state.properties.wallet.address,
-                                     btc: btc,
-                                     amount: amount,
-                                     currency: currency
-                                   }
+          self.state.paymentInfo = underscore.extend(underscore.pick(body, [ 'buyURL', 'buyURLExpires', 'mode', 'balance' ]),
+                                     { address: self.state.properties.wallet.address,
+                                       btc: btc,
+                                       amount: amount,
+                                       currency: currency
+                                     })
 
-          self._log('reconcile', { reason: 'balance < btc', balance: body.balance, btc: btc, delayTime: 100 })
-          return callback(null, self.state, 100)
+          delayTime = random.randomInt({ min: 0, max: 10 * 60 * 1000 })
+          self._log('reconcile', { reason: 'balance < btc', balance: body.balance, btc: btc, delayTime: delayTime })
+          return callback(null, self.state, delayTime)
         }
       }
 
@@ -390,7 +393,7 @@ Client.prototype._updateWallet = function (props, callback) {
   var payload = underscore.extend({ surveyorId: surveyorInfo.surveyorId }, self.state.properties.fee)
 
   self._roundTrip({ path: path, method: 'PUT', payload: payload }, function (err, response, body) {
-    self._log('reconcile', { method: 'PUT', path: '/v1/wallet/...', errP: !!err })
+    self._log('_updateWallet', { method: 'PUT', path: '/v1/wallet/...', errP: !!err })
     if (err) return callback(err)
 
     if (!self.state.pollTransaction) {
@@ -402,12 +405,12 @@ Client.prototype._updateWallet = function (props, callback) {
       if (self.options.verboseP) self.state.pollTransaction.date = self.state.reconcileDate
     }
     if (body.paymentInfo) {
-      self.state.thisPayment = underscore.extend(body.paymentInfo,
+      self.state.paymentInfo = underscore.extend(body.paymentInfo,
                                                  { reconcileId: surveyorInfo.surveyorId,
                                                    paymentStamp: self.state.reconcileStamp
                                                  })
-      if (self.options.verboseP) self.state.thisPayment.paymentDate = self.state.reconcileDate
-      delete body.paymentURL
+      if (self.options.verboseP) self.state.paymentInfo.paymentDate = self.state.reconcileDate
+      delete body.buyURL
     }
     self.state.reconcileStamp = underscore.now() + self._backOff(self.state.properties.days)
     if (self.options.verboseP) self.state.reconcileDate = new Date(self.state.reconcileStamp)
@@ -426,7 +429,9 @@ Client.prototype._prepareTransaction = function (callback) {
 
   var path
 
-  path = '/v1/wallet/' + self.state.properties.wallet.paymentId + '?currency=' + self.state.properties.fee.currency
+  path = '/v1/wallet/' + self.state.properties.wallet.paymentId +
+           '?amount=' + self.state.properties.fee.amount +
+           '&currency=' + self.state.properties.fee.currency
   self._roundTrip({ path: path, method: 'GET' }, function (err, response, body) {
     var delayTime, info, now
 
@@ -441,7 +446,7 @@ Client.prototype._prepareTransaction = function (callback) {
                                          delayTime: delayTime })
 
       info = self.state.pollTransaction.paymentInfo
-      if ((!info) || (!info.infoExpires) || (info.infoExpires <= underscore.now())) return callback(null, null, delayTime)
+      if ((!info) || (!info.buyURLExpires) || (info.buyURLExpires <= underscore.now())) return callback(null, null, delayTime)
 
       return self._updateWallet(self.state.pollTransaction, callback)
     }

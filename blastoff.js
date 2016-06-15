@@ -82,9 +82,10 @@ var callback = function (err, result, delayTime) {
 
   if (entries) entries.forEach(function (entry) { console.log('*** ' + JSON.stringify(entry)) })
 
-  if (result.thisPayment) {
-    console.log(JSON.stringify(result.thisPayment, null, 2))
-    console.log('\nplease click here for payment: ' + result.thisPayment.paymentURL + '\n')
+  if (result.paymentInfo) {
+    console.log(JSON.stringify(result.paymentInfo, null, 2))
+    console.log('\nplease click here for payment: bitcoin:' + result.paymentInfo.address + '?amount=' +
+                result.paymentInfo.btc + '\n')
   }
   fs.writeFile(configFile, JSON.stringify(result, null, 2), { encoding: 'utf8', mode: parseInt('644', 8) }, function (err) {
     if (err) oops(configFile, err)
