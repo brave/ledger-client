@@ -15,7 +15,7 @@ var Client = function (personaId, options, state) {
   self.options = underscore.defaults(options || {},
                                      { server: 'https://ledger.brave.com', debugP: false, loggingP: false, verboseP: false })
   if (typeof self.options.server === 'string') self.options.server = url.parse(self.options.server)
-  self.state = underscore.defaults(state || {}, { personaId: personaId, options: self.options })
+  self.state = underscore.defaults(state || {}, { personaId: personaId, options: self.options, transactions: [] })
   self.logging = []
 }
 
@@ -121,6 +121,7 @@ Client.prototype.getWalletProperties = function (callback) {
 
   path = '/v1/wallet/' + self.state.properties.wallet.paymentId
   self._roundTrip({ path: path, method: 'GET' }, function (err, response, body) {
+    self._log('getWalletProperties', { method: 'GET', path: '/v1/wallet/...', errP: !!err })
     if (err) return callback(err)
 
     callback(null, body)
@@ -204,9 +205,21 @@ Client.prototype.reconcile = function (report, callback) {
 
   path = '/v1/surveyor/browsing/current/' + self.state.properties.wallet.paymentId
   self._roundTrip({ path: path, method: 'GET' }, function (err, response, body) {
+    var i
     var surveyorInfo = body
 
+    self._log('reconcile', { method: 'GET', path: '/v1/surveyor/browsing/current/...', errP: !!err })
     if (err) return callback(err)
+
+    for (i = self.state.transactions.length - 1; i >= 0; i--) {
+      if (self.state.transactions[i].surveyorId === surveyorInfo.surveyorId) {
+        delayTime = random.randomInt({ min: 0, max: 10 * 60 * 1000 })
+
+        self._log('reconcile',
+                  { reason: 'awaiting a new surveyorId', delayTime: delayTime, surveyorId: surveyorInfo.surveyorId })
+        return callback(null, null, delayTime)
+      }
+    }
 
     path = '/v1/wallet/' + self.state.properties.wallet.paymentId +
              '?amount=' + self.state.properties.fee.amount +
@@ -227,7 +240,7 @@ Client.prototype.reconcile = function (report, callback) {
         }
 
         btc = (amount / body.rates[currency]).toFixed(4)
-        if ((body.balance === 0) || (body.balance < (btc - 0.0001))) {
+        if ((body.balance === 0) || (body.balance < (btc - 0.0005))) {
           self.state.paymentInfo = underscore.extend(underscore.pick(body, [ 'buyURL', 'buyURLExpires', 'mode', 'balance' ]),
                                      { address: self.state.properties.wallet.address,
                                        btc: btc,
@@ -457,7 +470,7 @@ Client.prototype._prepareTransaction = function (callback) {
     }
 
     self.state.prepareTransaction = underscore.defaults(underscore.pick(self.state.pollTransaction,
-                                                                        [ 'report', 'surveyorInfo' ]),
+                                                                        [ 'report', 'surveyorInfo', 'stamp' ]),
                                                         { server: self.options.server })
     delete self.state.pollTransaction
 
@@ -483,6 +496,10 @@ Client.prototype._submitTransaction = function (callback) {
   self._roundTrip({ path: path, method: 'PUT', payload: payload }, function (err, response, body) {
     self._log('_submitTransaction', { method: 'PUT', path: '/v1/surveyor/browsing/...', errP: !!err })
     if (err) return callback(err)
+
+    self.state.transactions.push({ stamp: self.state.prepareTransaction.stamp,
+                                   surveyorId: self.state.prepareTransaction.surveyorInfo.surveyorId
+                                 })
 
     delete self.state.prepareTransaction
 
