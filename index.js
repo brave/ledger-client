@@ -19,6 +19,10 @@ var Client = function (personaId, options, state) {
   self.logging = []
 }
 
+var oneSecond = 1 * 1000
+var tenMinutes = 10 * 60 * 1000
+var threeHours = 3 * 60 * 60 * 1000
+
 Client.prototype.sync = function (callback) {
   var self = this
 
@@ -60,7 +64,7 @@ Client.prototype.sync = function (callback) {
 
 /* for "external" wallets (not completed)
   if ((self.state.reconcileStamp) && ((now - self.state.reconcileStamp) > 0)) {
-    delayTime = random.randomInt({ min: 0, max: 10 * 60 * 1000 })
+    delayTime = random.randomInt({ min: oneSecond, max: tenMinutes })
     self._log('sync',
               { reason: 'next reconciliation', delayTime: delayTime, reconcileStamp: self.state.reconcileStamp, now: now })
     return callback(null, null, delayTime)
@@ -193,7 +197,7 @@ Client.prototype.reconcile = function (report, callback) {
     return callback(null, null, delayTime)
   }
   if ((this.state.pollTransaction) || (this.state.prepareTransaction)) {
-    delayTime = random.randomInt({ min: 0, max: 10 * 60 * 1000 })
+    delayTime = random.randomInt({ min: oneSecond, max: tenMinutes })
     this._log('reconcile', { reason: 'already reconciling', delayTime: delayTime, reconcileStamp: this.state.reconcileStamp })
     return callback(null, null, delayTime)
   }
@@ -213,7 +217,7 @@ Client.prototype.reconcile = function (report, callback) {
 
     for (i = self.state.transactions.length - 1; i >= 0; i--) {
       if (self.state.transactions[i].surveyorId === surveyorInfo.surveyorId) {
-        delayTime = random.randomInt({ min: 0, max: 10 * 60 * 1000 })
+        delayTime = random.randomInt({ min: oneSecond, max: tenMinutes })
 
         self._log('reconcile',
                   { reason: 'awaiting a new surveyorId', delayTime: delayTime, surveyorId: surveyorInfo.surveyorId })
@@ -248,7 +252,7 @@ Client.prototype.reconcile = function (report, callback) {
                                        currency: currency
                                      })
 
-          delayTime = random.randomInt({ min: 0, max: 10 * 60 * 1000 })
+          delayTime = random.randomInt({ min: oneSecond, max: tenMinutes })
           self._log('reconcile', { reason: 'balance < btc', balance: body.balance, btc: btc, delayTime: delayTime })
           return callback(null, self.state, delayTime)
         }
@@ -321,7 +325,7 @@ Client.prototype._prepareWallet = function (callback) {
     if (validity.error) throw new Error(validity.error)
 
     now = underscore.now()
-    delayTime = self._backOff(random.randomInt({ min: 0, max: self.state.prepareWallet.payload.adFree.days || 30 }))
+    delayTime = random.randomInt({ min: oneSecond, max: threeHours })
     self.state.delayStamp = now + delayTime
 
     self._log('_prepareWallet', { delayTime: delayTime })
@@ -457,7 +461,7 @@ Client.prototype._prepareTransaction = function (callback) {
     if (err) return callback(err)
 
     if ((!body.lastPaymentStamp) || (body.lastPaymentStamp < self.state.pollTransaction.stamp)) {
-      delayTime = random.randomInt({ min: 0, max: 10 * 60 * 1000 })
+      delayTime = random.randomInt({ min: oneSecond, max: tenMinutes })
       self._log('_prepareTransaction', { reason: 'lastPaymentStamp < pollTransactionStamp',
                                          lastPaymentStamp: body.lastPaymentStamp,
                                          pollTransactionStamp: self.state.pollTransaction.stamp,
@@ -475,7 +479,7 @@ Client.prototype._prepareTransaction = function (callback) {
     delete self.state.pollTransaction
 
     now = underscore.now()
-    delayTime = self._backOff(random.randomInt({min: 0, max: 1}))
+    delayTime = random.randomInt({ min: oneSecond, max: threeHours })
     self.state.delayStamp = now + delayTime
 
     self._log('_prepareTransaction', { delayTime: delayTime })
