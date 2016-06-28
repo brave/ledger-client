@@ -15,7 +15,8 @@ var Client = function (personaId, options, state) {
   self.options = underscore.defaults(options || {},
                                      { server: 'https://ledger.brave.com', debugP: false, loggingP: false, verboseP: false })
   if (typeof self.options.server === 'string') self.options.server = url.parse(self.options.server)
-  self.state = underscore.defaults(state || {}, { personaId: personaId, options: self.options, transactions: [] })
+  self.state = underscore.defaults(state || {},
+                                   { personaId: anonize.uId(personaId), options: self.options, transactions: [] })
   self.logging = []
 }
 
@@ -207,7 +208,7 @@ Client.prototype.reconcile = function (report, callback) {
     throw new Error('setting not (yet) supported: ' + self.state.properties.setting)
   }
 
-  path = '/v1/surveyor/browsing/current/' + self.state.properties.wallet.paymentId
+  path = '/v1/surveyor/browsing/current/' + self.credentials.wallet.parameters.userId
   self._roundTrip({ path: path, method: 'GET' }, function (err, response, body) {
     var i
     var surveyorInfo = body
@@ -299,6 +300,7 @@ Client.prototype._registerPersona = function (callback) {
       if (err) return callback(err)
 
       try { credential.finalize(body.verification) } catch (ex) { return callback(ex) }
+      self.credentials.persona = credential
       self.state.persona = JSON.stringify(credential)
 
       self._log('_registerPersona', { delayTime: 100 })
@@ -388,14 +390,16 @@ Client.prototype._registerWallet = function (callback) {
 
     credential = new anonize.Credential(self.state.properties.wallet.paymentId, wallet.registrarVK)
 
-    path = '/v1/registrar/wallet/' + self.state.properties.wallet.paymentId
+    path = '/v1/registrar/wallet/' + credential.parameters.userId
     try { payload = { proof: credential.request() } } catch (ex) { return callback(ex) }
     self._roundTrip({ path: path, method: 'POST', payload: payload }, function (err, response, body) {
       self._log('_registerWallet', { method: 'POST', path: '/v1/registrar/wallet/...', errP: !!err })
       if (err) return callback(err)
 
       try { credential.finalize(body.verification) } catch (ex) { return callback(ex) }
+      self.credentials.wallet = credential
       self.state.wallet = JSON.stringify(credential)
+
       self.state.bootStamp = underscore.now()
       if (self.options.verboseP) self.state.bootDate = new Date(self.state.bootStamp)
       self.state.reconcileStamp = self.state.bootStamp + self._backOff(self.state.properties.days)
