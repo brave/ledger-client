@@ -15,8 +15,7 @@ var Client = function (personaId, options, state) {
   self.options = underscore.defaults(options || {},
                                      { server: 'https://ledger.brave.com', debugP: false, loggingP: false, verboseP: false })
   if (typeof self.options.server === 'string') self.options.server = url.parse(self.options.server)
-  self.state = underscore.defaults(state || {},
-                                   { personaId: anonize.uId(personaId), options: self.options, transactions: [] })
+  self.state = underscore.defaults(state || {}, { personaId: personaId, options: self.options, transactions: [] })
   self.logging = []
 }
 
@@ -293,7 +292,7 @@ Client.prototype._registerPersona = function (callback) {
 
     credential = new anonize.Credential(self.state.personaId, persona.registrarVK)
 
-    path = '/v1/registrar/persona/' + self.state.personaId
+    path = '/v1/registrar/persona/' + credential.parameters.userId
     try { payload = { proof: credential.request() } } catch (ex) { return callback(ex) }
     self._roundTrip({ path: path, method: 'POST', payload: payload }, function (err, response, body) {
       self._log('_registerPersona', { method: 'POST', path: '/v1/registrar/persona/...', errP: !!err })
@@ -314,7 +313,7 @@ Client.prototype._prepareWallet = function (callback) {
 
   var path
 
-  path = '/v1/surveyor/wallet/current/' + self.state.personaId
+  path = '/v1/surveyor/wallet/current/' + self.credentials.persona.parameters.userId
   self._roundTrip({ path: path, method: 'GET' }, function (err, response, body) {
     var delayTime, now, validity
     var schema = Joi.object({}).pattern(/[A-Z][A-Z][A-Z]/, Joi.number().positive()).unknown(true).required()
