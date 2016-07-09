@@ -12,6 +12,8 @@ var Client = function (personaId, options, state) {
 
   var self = this
 
+  if (!personaId) throw new Error('missing personaId')
+
   self.options = underscore.defaults(options || {},
                                      { server: 'https://ledger.brave.com', debugP: false, loggingP: false, verboseP: false })
   if (typeof self.options.server === 'string') self.options.server = url.parse(self.options.server)
