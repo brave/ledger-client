@@ -77,12 +77,18 @@ Client.prototype.sync = function (callback) {
   return true
 }
 
-var propertyList = [ 'setting', 'fee' ]
+var propertyList = [ 'setting', 'fee', 'purchaseInfo' ]
 
 Client.prototype.getBraveryProperties = function () {
+  var errP
+
   this._log('getBraveryProperties')
 
-  return underscore.pick(this.state.properties, 'setting', 'fee')
+  errP = !this.state.properties
+  this._log('getBraveryProperties', { errP: errP })
+  if (errP) throw new Error('Ledger client initialization incomplete.')
+
+  return underscore.pick(this.state.properties, 'setting', 'fee', 'purchaseInfo')
 }
 
 Client.prototype.setBraveryProperties = function (properties, callback) {
@@ -98,7 +104,7 @@ Client.prototype.setBraveryProperties = function (properties, callback) {
   propertyList.forEach(function (property) {
     var value = properties[property]
 
-    if ((typeof value !== 'undefined') && (value === self.state.properties[property])) {
+    if ((typeof value !== 'undefined') && (value !== self.state.properties[property])) {
       modifyP = true
 
       self.state.properties[property] = value
@@ -114,10 +120,15 @@ Client.prototype.getWalletAddress = function () {
   return this.state.properties && this.state.properties.wallet && this.state.properties.wallet.address
 }
 
-Client.prototype.getWalletProperties = function (callback) {
+Client.prototype.getWalletProperties = function (currency, callback) {
   var self = this
 
   var errP, path
+
+  if (typeof currency === 'function') {
+    callback = currency
+    currency = null
+  }
 
   if (typeof callback !== 'function') throw new Error('getWalletProperties missing callback parameter')
 
@@ -126,6 +137,7 @@ Client.prototype.getWalletProperties = function (callback) {
   if (errP) throw new Error('Ledger client initialization incomplete.')
 
   path = '/v1/wallet/' + self.state.properties.wallet.paymentId
+  if (currency) path += '?currency=' + currency
   self._roundTrip({ path: path, method: 'GET' }, function (err, response, body) {
     self._log('getWalletProperties', { method: 'GET', path: '/v1/wallet/...', errP: !!err })
     if (err) return callback(err)
@@ -229,7 +241,9 @@ Client.prototype.reconcile = function (report, callback) {
 
     path = '/v1/wallet/' + self.state.properties.wallet.paymentId +
              '?amount=' + self.state.properties.fee.amount +
-             '&currency=' + self.state.properties.fee.currency
+             '&currency=' + self.state.properties.fee.currency +
+             '&purchaseInfo=' + ((typeof self.state.properties.purchaseInfo === 'undefined' ||
+                                 self.state.properties.purchaseInfo) ? 'true' : 'false')
     self._roundTrip({ path: path, method: 'GET' }, function (err, response, body) {
       var amount, btc, currency
 
