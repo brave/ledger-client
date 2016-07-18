@@ -17,6 +17,15 @@ var Client = function (personaId, options, state) {
   self.options = underscore.defaults(options || {},
                                      { server: 'https://ledger.brave.com', debugP: false, loggingP: false, verboseP: false })
   if (typeof self.options.server === 'string') self.options.server = url.parse(self.options.server)
+  if (typeof options.roundtrip !== 'undefined') {
+    if (typeof options.roundtrip !== 'function') throw new Error('invalid roundtrip option (must be a function)')
+
+    self._innerTrip = options.roundtrip.bind(self)
+    self.roundtrip = function (params, callback) { self._innerTrip(params, self.options, callback) }
+  } else {
+    self.roundtrip = self._roundTrip
+  }
+
   self.state = underscore.defaults(state || {}, { personaId: personaId, options: self.options, transactions: [] })
   self.logging = []
 }
@@ -138,7 +147,7 @@ Client.prototype.getWalletProperties = function (currency, callback) {
 
   path = '/v1/wallet/' + self.state.properties.wallet.paymentId
   if (currency) path += '?currency=' + currency
-  self._roundTrip({ path: path, method: 'GET' }, function (err, response, body) {
+  self.roundtrip({ path: path, method: 'GET' }, function (err, response, body) {
     self._log('getWalletProperties', { method: 'GET', path: '/v1/wallet/...', errP: !!err })
     if (err) return callback(err)
 
@@ -222,7 +231,7 @@ Client.prototype.reconcile = function (report, callback) {
   }
 
   path = '/v1/surveyor/browsing/current/' + self.credentials.wallet.parameters.userId
-  self._roundTrip({ path: path, method: 'GET' }, function (err, response, body) {
+  self.roundtrip({ path: path, method: 'GET' }, function (err, response, body) {
     var i
     var surveyorInfo = body
 
@@ -244,7 +253,7 @@ Client.prototype.reconcile = function (report, callback) {
              '&currency=' + self.state.properties.fee.currency +
              '&purchaseInfo=' + ((typeof self.state.properties.purchaseInfo === 'undefined' ||
                                  self.state.properties.purchaseInfo) ? 'true' : 'false')
-    self._roundTrip({ path: path, method: 'GET' }, function (err, response, body) {
+    self.roundtrip({ path: path, method: 'GET' }, function (err, response, body) {
       var amount, btc, currency
 
       self._log('reconcile', { method: 'GET', path: '/v1/wallet/...', errP: !!err })
@@ -298,7 +307,7 @@ Client.prototype._registerPersona = function (callback) {
   var path
 
   path = '/v1/registrar/persona/publickey'
-  self._roundTrip({ path: path, method: 'GET' }, function (err, response, body) {
+  self.roundtrip({ path: path, method: 'GET' }, function (err, response, body) {
     var credential, payload, persona
 
     self._log('_registerPersona', { method: 'GET', path: path, errP: !!err })
@@ -310,7 +319,7 @@ Client.prototype._registerPersona = function (callback) {
 
     path = '/v1/registrar/persona/' + credential.parameters.userId
     try { payload = { proof: credential.request() } } catch (ex) { return callback(ex) }
-    self._roundTrip({ path: path, method: 'POST', payload: payload }, function (err, response, body) {
+    self.roundtrip({ path: path, method: 'POST', payload: payload }, function (err, response, body) {
       self._log('_registerPersona', { method: 'POST', path: '/v1/registrar/persona/...', errP: !!err })
       if (err) return callback(err)
 
@@ -330,7 +339,7 @@ Client.prototype._prepareWallet = function (callback) {
   var path
 
   path = '/v1/surveyor/wallet/current/' + self.credentials.persona.parameters.userId
-  self._roundTrip({ path: path, method: 'GET' }, function (err, response, body) {
+  self.roundtrip({ path: path, method: 'GET' }, function (err, response, body) {
     var delayTime, now, validity
     var schema = Joi.object({}).pattern(/[A-Z][A-Z][A-Z]/, Joi.number().positive()).unknown(true).required()
 
@@ -361,7 +370,7 @@ Client.prototype._commitWallet = function (callback) {
     payload = { proof: self.credentials.persona.submit(surveyor,
                                                        self.options.wallet ? { wallet: self.options.wallet } : {}) }
   } catch (ex) { return callback(ex) }
-  self._roundTrip({ path: path, method: 'PUT', payload: payload }, function (err, response, body) {
+  self.roundtrip({ path: path, method: 'PUT', payload: payload }, function (err, response, body) {
     var currency, fee
 
     self._log('_commitWallet', { method: 'PUT', path: '/v1/surveyor/wallet/...', errP: !!err })
@@ -395,7 +404,7 @@ Client.prototype._registerWallet = function (callback) {
   var path
 
   path = '/v1/registrar/wallet/publickey'
-  self._roundTrip({ path: path, method: 'GET' }, function (err, response, body) {
+  self.roundtrip({ path: path, method: 'GET' }, function (err, response, body) {
     var credential, payload, wallet
 
     self._log('_registerWallet', { method: 'GET', path: path, errP: !!err })
@@ -407,7 +416,7 @@ Client.prototype._registerWallet = function (callback) {
 
     path = '/v1/registrar/wallet/' + credential.parameters.userId
     try { payload = { proof: credential.request() } } catch (ex) { return callback(ex) }
-    self._roundTrip({ path: path, method: 'POST', payload: payload }, function (err, response, body) {
+    self.roundtrip({ path: path, method: 'POST', payload: payload }, function (err, response, body) {
       self._log('_registerWallet', { method: 'POST', path: '/v1/registrar/wallet/...', errP: !!err })
       if (err) return callback(err)
 
@@ -432,7 +441,7 @@ Client.prototype._updateWallet = function (props, callback) {
   var surveyorInfo = props.surveyorInfo
   var payload = underscore.extend({ surveyorId: surveyorInfo.surveyorId }, self.state.properties.fee)
 
-  self._roundTrip({ path: path, method: 'PUT', payload: payload }, function (err, response, body) {
+  self.roundtrip({ path: path, method: 'PUT', payload: payload }, function (err, response, body) {
     self._log('_updateWallet', { method: 'PUT', path: '/v1/wallet/...', errP: !!err })
     if (err) return callback(err)
 
@@ -473,7 +482,7 @@ Client.prototype._prepareTransaction = function (callback) {
            '?amount=' + self.state.properties.fee.amount +
            '&currency=' + self.state.properties.fee.currency +
            '&lastPaymentInfo=true'
-  self._roundTrip({ path: path, method: 'GET' }, function (err, response, body) {
+  self.roundtrip({ path: path, method: 'GET' }, function (err, response, body) {
     var delayTime, info, now
 
     self._log('_prepareTransaction', { method: 'GET', path: '/v1/wallet/...', errP: !!err })
@@ -516,7 +525,7 @@ Client.prototype._submitTransaction = function (callback) {
   try {
     payload = { proof: self.credentials.wallet.submit(surveyor, { report: self.state.prepareTransaction.report }) }
   } catch (ex) { return callback(ex) }
-  self._roundTrip({ path: path, method: 'PUT', payload: payload }, function (err, response, body) {
+  self.roundtrip({ path: path, method: 'PUT', payload: payload }, function (err, response, body) {
     self._log('_submitTransaction', { method: 'PUT', path: '/v1/surveyor/browsing/...', errP: !!err })
     if (err) return callback(err)
 
@@ -545,7 +554,7 @@ Client.prototype._updateRules = function (callback) {
   var self = this
 
   path = '/v1/publisher/ruleset'
-  self._roundTrip({ path: path, method: 'GET' }, function (err, response, ruleset) {
+  self.roundtrip({ path: path, method: 'GET' }, function (err, response, ruleset) {
     var validity
 
     self._log('_updateRules', { method: 'GET', path: '/v1/publisher/ruleset', errP: !!err })
@@ -568,15 +577,15 @@ Client.prototype._updateRules = function (callback) {
 }
 
 // round-trip to the ledger
-Client.prototype._roundTrip = function (options, callback) {
+Client.prototype._roundTrip = function (params, callback) {
   var self = this
 
   var request
   var client = self.options.server.protocol === 'https:' ? https : http
 
-  options = underscore.extend(underscore.pick(self.options.server, 'protocol', 'hostname', 'port'), options)
+  params = underscore.extend(underscore.pick(self.options.server, 'protocol', 'hostname', 'port'), params)
 
-  request = client.request(underscore.omit(options, 'payload'), function (response) {
+  request = client.request(underscore.omit(params, 'payload'), function (response) {
     var body = ''
 
     response.on('data', function (chunk) {
@@ -609,13 +618,13 @@ Client.prototype._roundTrip = function (options, callback) {
   }).on('error', function (err) {
     callback(err)
   })
-  if (options.payload) request.write(JSON.stringify(options.payload))
+  if (params.payload) request.write(JSON.stringify(params.payload))
   request.end()
 
   if (!self.options.verboseP) return
 
-  console.log('<<< ' + options.method + ' ' + options.path)
-  if (options.payload) console.log('<<< ' + JSON.stringify(options.payload, null, 2).split('\n').join('\n<<< '))
+  console.log('<<< ' + params.method + ' ' + params.path)
+  if (params.payload) console.log('<<< ' + JSON.stringify(params.payload, null, 2).split('\n').join('\n<<< '))
 }
 
 module.exports = Client
