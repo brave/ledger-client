@@ -1,11 +1,6 @@
 # ledger-client
 An example of client code for the [Brave ledger](https://github.com/brave/ledger).
 
-**NOTE WELL:**
-you must have CMake installed. The easiest way to do this is:
-
-        npm install -g install-cmake
-
 ## API
 
 To begin:
@@ -21,10 +16,6 @@ if `err` is `null`, and `result` is not `null`, then `result` must be put into p
 (If `err` is `null`,
 then the operation has succeeded,
 regardless of whether `result` is defined or not.)
-
-    If `result.thisPayment` is present,
-then the user should be directed to the URL `result.thisPayment.paymentURL` --
-this allows the use of an external wallet for `adFree` behavior.
 
 - The [Ledger protocol](https://github.com/brave/ledger/tree/master/documentation/Ledger-Principles.md)
 requires that the client uses a pseudo-random delay be introduced at certain points during operations.
@@ -50,22 +41,10 @@ where the value for `personaId` is the property of the same name associated with
 and `options` is:
 
         // all properties are optional...
-        { server            : 'https://ledger-staging.brave.com'
+        { server            : 'https://ledger.brave.com'
         , debugP            : false
         , loggingP          : false
         , verboseP          : false
-        , wallet            :
-          { // if the wallet property is present, then the address and provider properties must be present
-            address         : 'BTC address'
-          , provider        : 'coinbase'
-          , credentials     :
-            { access_token  : '...'
-            , token_type    : 'bearer'
-            , expires_in    : ...
-            , refresh_token : '...'
-            , scope         : 'wallet:accounts:read'
-            }
-          }
         }
 
 and `state` is either: whatever was previously stored in persistent storage, or `{}`.
@@ -104,6 +83,10 @@ indicating that persistent storage be updated.
         var redirectURL = this.client.getVerificationURL()
 
 ### Monthly Reconcilation
+`isReadyToReconcile`
+`timeUntilReconcile`
+`reconcile`
+
 The client should periodical call:
 
         var nowP = client.isReadyToReconcile()
@@ -145,6 +128,12 @@ Otherwise, if the Bravery `setting` is `adReplacement`, then the client calls:
 
 Regardless of the value of the Bravery `setting`,
 
+## Statistical Voting
+`ballots`
+`vote`
+
+## Logging
+`report`
 
 ## Examples
 The file `blastoff.js` is a (non-sensical) example of how to use the API --

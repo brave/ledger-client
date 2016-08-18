@@ -3,6 +3,7 @@
 var fs = require('fs')
 var path = require('path')
 var url = require('url')
+var uuid = require('node-uuid')
 
 /*
  *
@@ -23,7 +24,6 @@ var personaID = process.env.PERSONA
 var debugP = process.env.DEBUG || false
 var loggingP = process.env.LOGGING || false
 var verboseP = process.env.VERBOSE || false
-var walletFile = process.env.WALLETFILE
 
 while (argv.length > 0) {
   if (argv[0].indexOf('-') !== 0) break
@@ -49,7 +49,6 @@ while (argv.length > 0) {
   if (argv[0] === '-f') configFile = argv[1]
   else if (argv[0] === '-s') server = argv[1]
   else if (argv[0] === '-p') personaID = argv[1].toLowerCase()
-  else if (argv[0] === '-w') walletFile = argv[1]
   else usage()
 
   argv = argv.slice(2)
@@ -62,7 +61,6 @@ if (server.indexOf('http') !== 0) server = 'https://' + server
 server = url.parse(server)
 
 options = { server: server, debugP: debugP, loggingP: loggingP, verboseP: verboseP }
-if (walletFile) options.wallet = JSON.parse(fs.readFileSync(walletFile))
 
 /*
  *
@@ -80,7 +78,7 @@ var callback = function (err, result, delayTime) {
 
   if (!result) return run(delayTime)
 
-  if (entries) entries.forEach(function (entry) { console.log('*** ' + JSON.stringify(entry)) })
+  if (entries) entries.forEach((entry) => { console.log('*** ' + JSON.stringify(entry)) })
 
   if (result.paymentInfo) {
     console.log(JSON.stringify(result.paymentInfo, null, 2))
@@ -90,6 +88,13 @@ var callback = function (err, result, delayTime) {
   fs.writeFile(configFile, JSON.stringify(result, null, 2), { encoding: 'utf8', mode: parseInt('644', 8) }, function (err) {
     if (err) oops(configFile, err)
 
+    // at least one transaction
+    // with all ballots created
+    // and all ballots submitted
+    if ((result.transactions) && (result.transactions.length) &&
+        (result.transactions[0].count === result.transactions[0].votes) &&
+        (!result.ballots.length)) process.exit(0)
+
     run(delayTime)
   })
 }
@@ -98,7 +103,7 @@ fs.readFile(personaID ? '/dev/null' : configFile, { encoding: 'utf8' }, function
   var state = err ? null : data ? JSON.parse(data) : {}
 
   client = require('./index.js')(personaID, options, state)
-  client.sync(callback)
+  if (client.sync(callback) === true) run(10 * 1000)
 })
 
 /*
@@ -110,15 +115,18 @@ fs.readFile(personaID ? '/dev/null' : configFile, { encoding: 'utf8' }, function
 var reconcileP = false
 
 var run = function (delayTime) {
-  var report = [ { publisher: 'wsj.com', weight: 100 } ]
+  var viewingId = uuid.v4().toLowerCase()
 
-  if (delayTime > 0) return setTimeout(function () { if (client.sync(callback)) return run(0) }, delayTime)
+  if (delayTime > 0) return setTimeout(() => { if (client.sync(callback)) return run(0) }, delayTime)
 
-  if (!client.isReadyToReconcile()) return client.reconcile(report, callback)
-  if (reconcileP) return console.log('already reconciling.')
+  if (!client.isReadyToReconcile()) return client.reconcile(viewingId, callback)
+  if (reconcileP) {
+    console.log('already reconciling.\n')
+    return run(60 * 1000)
+  }
 
   reconcileP = true
-  client.reconcile(report, callback)
+  client.reconcile(viewingId, callback)
 }
 
 var oops = function (s, err) {

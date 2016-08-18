@@ -1,12 +1,11 @@
 {
   "name": "ledger-client",
-  "version": "0.8.34",
+  "version": "0.8.42",
   "description": "An example of client code for the Brave ledger.",
   "main": "index.js",
   "scripts": {
     "blastoff": "DEBUG=*,-babel ./blastoff.js -d -l -v -s http://127.0.0.1:3001 -p `uuidgen`",
-    "blastoff-byow": "DEBUG=*,-babel ./blastoff.js -d -l -v -s http://127.0.0.1:3001 -p `uuidgen` -w wallet.json",
-    "blastoff-integration": "DEBUG=*,-babel ./blastoff.js -d -l -v -s https://ledger-integration.brave.com -p `uuidgen`",
+    "liftoff": "DEBUG=*,-babel ./blastoff.js -d -l -v -s http://127.0.0.1:3001 -f ./config.json",
     "lint": "gulp lint",
     "test": "npm run test-security",
     "test-security": "nsp check"
@@ -22,9 +21,12 @@
   },
   "homepage": "https://github.com/brave/ledger-client",
   "dependencies": {
+    "bitgo": "^1.8.0",
     "joi": "^9.0.0-2",
-    "ledger-publisher": "^0.8.33",
-    "node-anonize2-relic": "https://github.com/brave/node-anonize2-relic.git",
+    "ledger-balance": "^0.8.39",
+    "ledger-publisher": "^0.8.39",
+    "node-anonize2-relic-emscripten": "https://github.com/brave/node-anonize2-relic-emscripten.git",
+    "node-uuid": "^1.4.7",
     "random-lib": "2.1.0",
     "underscore": "1.8.3"
   },
@@ -36,7 +38,6 @@
     "del": "^2.0.2",
     "gulp": "^3.9.0",
     "gulp-standard": "^5.2.2",
-    "node-uuid": "^1.4.7",
     "nsp": "^2.2.0",
     "run-sequence": "^1.1.0"
   }
