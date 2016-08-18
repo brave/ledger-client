@@ -36,9 +36,8 @@ it will be a no-op.
         this.client = new Client(personaId, options, state)
         this.client.sync(callback)
 
-where the value for `personaId` is the property of the same name associated with a
-[Brave Vault client endpoint](https://github.com/brave/vault-client#vault-properties),
-and `options` is:
+where the value for `personaId` (if not `null`) is a
+[UUID v4](https://en.wikipedia.org/wiki/Universally_unique_identifier#Version_4_.28random.29) value and `options` is:
 
         // all properties are optional...
         { server            : 'https://ledger.brave.com'
@@ -48,6 +47,7 @@ and `options` is:
         }
 
 and `state` is either: whatever was previously stored in persistent storage, or `{}`.
+(
 
 The client endpoint should not be referenced until the callback is invoked.
 
@@ -59,10 +59,11 @@ the client calls:
 
 where `properties` is a list of configuration options:
 
-| Property    | Possible Values                      |
-|------------:|--------------------------------------|
-| `setting`   | "adFree" or "adReplacement"          |
-| `fee`       | for "adFree", the monthly fee in BTC |
+| Property    | Meaning                     | Examples                     |
+|------------:|-----------------------------|------------------------------|
+| `setting`   | "adFree" or "adReplacement" | adFree                       |
+| `days`      | the reconcilation period    | 30                           |
+| `fee`       | for "adFree"                | { currency: USD, amount: 5 } |
 
 To update the Bravery properties for the Ledger,
 the client calls:
@@ -77,16 +78,12 @@ indicating that persistent storage be updated.
         var address = this.client.getWalletAddress()
 
         this.client.getWalletProperties(function (err, properties) {
+          if (err) return console.log(err)
+
           console.log('wallet balance=' + properties.balance + 'BTC')
         })
 
-        var redirectURL = this.client.getVerificationURL()
-
-### Monthly Reconcilation
-`isReadyToReconcile`
-`timeUntilReconcile`
-`reconcile`
-
+### Reconcilation
 The client should periodical call:
 
         var nowP = client.isReadyToReconcile()
@@ -94,46 +91,49 @@ The client should periodical call:
 If `true` is returned,
 then it is time for the monthly reconcilation to occur.
 
-If the Bravery `setting` is `adFree`,
-then the client prepares the browsing report and calls:
+Alternatively,
 
-        client.reconcile(report, callback)
+        var msec = client.timeUntilReconcile()
 
-For the `report` parameter, the associated [JSON schema](http://json-schema.org/latest/json-schema-core.html) is:
+will return `false` if reconcilation is already underway,
+or the number of milliseconds before reconcilation should occur
+(a negative number indicates that reconcilation is overdue).
 
-        { "id": "https://brave.com/report-schema#"
-        , "$schema": "http://json-schema.org/draft-04/schema#"
-        , "type": "object"
-        , "properties":
-          { "report":
-            { "type": "array"
-            , "minItems": 1
-            , "items":
-              { "type": "object"
-              , "properties":
-                { "publisher": { "type": "string", "format": "uri" }
-                , "weight": { "type": "number" }
-                }
-              , "required": [ "publisher", "weight" ]
-              }
-            }
-          }
-        , "required": [ "report" ]
-        }
+When it is time to reconcile,
+the client calls:
 
+        client.reconcile(viewingId, callback)
 
-Otherwise, if the Bravery `setting` is `adReplacement`, then the client calls:
-
-        client.reconcile(callback)
-
-Regardless of the value of the Bravery `setting`,
+The `viewingId` parameter (if not `null) is a UUID v4 value,
+that may be used for subequent calls to `vote()`.
 
 ## Statistical Voting
-`ballots`
-`vote`
+After a successful reconciliation,
+the client is authorized to cast one or more ballots,
+as indicated by the `ballots` method.
+Each vote is cast using the `vote` method:
+
+    if (client.ballots() > 0) {
+      // select publisher identity
+      client.vote(publisher, viewingId)
+    }
+
+The `viewingId` parameter is optional,
+otherwise it should correspond to a value used in a previous call to the `reconcile` method.
 
 ## Logging
-`report`
+If `options.loggingP` is true,
+then the client may call
+
+    var entries = client.report()
+
+which returns either an array of (zero or more) logging entries.
+Each entry contains three fields:
+
+        { who  : function that made entry
+          what : { parameters }
+          when : timestamp (as milliseconds since epoch)
+        }
 
 ## Examples
 The file `blastoff.js` is a (non-sensical) example of how to use the API --
