@@ -415,6 +415,7 @@ Client.prototype._currentReconcile = function (callback) {
         transaction = { viewingId: viewingId,
                         surveyorId: surveyorInfo.surveyorId,
                         submissionStamp: body.paymentStamp,
+                        submissionDate: self.options.verbose ? new Date(body.paymentStamp) : undefined,
                         submissionId: body.hash
                       }
         self.state.transactions.push(transaction)
