@@ -360,7 +360,7 @@ Client.prototype._registerPersona = function (callback) {
 Client.prototype._currentReconcile = function (callback) {
   var self = this
 
-  var wallet
+  var fee, rates, satoshis, wallet
   var amount = self.state.properties.fee.amount
   var currency = self.state.properties.fee.currency
   var path = '/v1/wallet/' + self.state.properties.wallet.paymentId
@@ -382,7 +382,7 @@ Client.prototype._currentReconcile = function (callback) {
         self._log('reconcile', { error: currency + ' no longer supported by the ledger' })
       }
 
-      self.state.paymentInfo = underscore.extend(underscore.pick(body, [ 'balance', 'buyURL', 'buyURLExpires', 'satoshis' ]),
+      self.state.paymentInfo = underscore.extend(underscore.pick(body, [ 'balance', 'buyURL', 'recurringURL', 'satoshis' ]),
                                  { address: self.state.properties.wallet.address,
                                    btc: btc,
                                    amount: amount,
@@ -393,6 +393,10 @@ Client.prototype._currentReconcile = function (callback) {
       self._log('_currentReconcile', { reason: 'balance < btc', balance: body.balance, btc: btc, delayTime: delayTime })
       return callback(null, self.state, delayTime)
     }
+
+    fee = body.unsignedTx.fee
+    rates = body.rates
+    satoshis = body.satoshis
 
     wallet = bitgo.newWalletObject({ wallet: { id: self.state.properties.wallet.address } })
     wallet.signTransaction({ transactionHex: body.unsignedTx.transactionHex,
@@ -414,6 +418,9 @@ Client.prototype._currentReconcile = function (callback) {
 
         transaction = { viewingId: viewingId,
                         surveyorId: surveyorInfo.surveyorId,
+                        contribution: { fiat: { amount: amount, currency: currency },
+                                        rates: rates, satoshis: satoshis, fee: fee
+                                      },
                         submissionStamp: body.paymentStamp,
                         submissionDate: self.options.verbose ? new Date(body.paymentStamp) : undefined,
                         submissionId: body.hash
