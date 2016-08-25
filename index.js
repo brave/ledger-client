@@ -422,7 +422,7 @@ Client.prototype._currentReconcile = function (callback) {
                                         rates: rates, satoshis: satoshis, fee: fee
                                       },
                         submissionStamp: body.paymentStamp,
-                        submissionDate: self.options.verbose ? new Date(body.paymentStamp) : undefined,
+                        submissionDate: self.options.verboseP ? new Date(body.paymentStamp) : undefined,
                         submissionId: body.hash
                       }
         self.state.transactions.push(transaction)
