@@ -16,8 +16,11 @@ var Client = function (personaId, options, state) {
 
   if (!personaId) personaId = uuid.v4().toLowerCase()
 
-  self.options = underscore.defaults(underscore.clone(options) || {},
+  self.options = underscore.defaults(underscore.clone(options || {}),
                                      { server: 'https://ledger.brave.com', debugP: false, loggingP: false, verboseP: false })
+  underscore.keys(self.options).forEach(function (option) {
+    if ((option.lastIndexOf('P') + 1) === option.length) self.options[option] = Client.prototype.boolion(self.options[option])
+  })
   if (typeof self.options.server === 'string') self.options.server = url.parse(self.options.server)
   if (typeof options.roundtrip !== 'undefined') {
     if (typeof options.roundtrip !== 'function') throw new Error('invalid roundtrip option (must be a function)')
@@ -626,6 +629,34 @@ Client.prototype._roundTrip = function (params, callback) {
   console.log('<<< ' + params.method + ' ' + params.protocol + '//' + params.hostname + params.path)
   console.log('<<<')
   if (params.payload) console.log('<<< ' + JSON.stringify(params.payload, null, 2).split('\n').join('\n<<< '))
+}
+
+Client.prototype.boolion = function (value) {
+  var f = {
+    undefined: function () {
+      return false
+    },
+
+    boolean: function () {
+      return value
+    },
+
+    // handles `Infinity` and `NaN`
+    number: function () {
+      return (!!value)
+    },
+
+    string: function () {
+      return ([ 'n', 'no', 'false', '0' ].indexOf(value.toLowerCase()) === -1)
+    },
+
+    // handles `null`
+    object: function () {
+      return (!!value)
+    }
+  }[typeof value] || function () { return true }
+
+  return f()
 }
 
 module.exports = Client
