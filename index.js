@@ -360,7 +360,7 @@ Client.prototype._registerPersona = function (callback) {
 Client.prototype._currentReconcile = function (callback) {
   var self = this
 
-  var fee, rates, satoshis, wallet
+  var fee, rates, wallet
   var amount = self.state.properties.fee.amount
   var currency = self.state.properties.fee.currency
   var path = '/v1/wallet/' + self.state.properties.wallet.paymentId
@@ -396,7 +396,6 @@ Client.prototype._currentReconcile = function (callback) {
 
     fee = body.unsignedTx.fee
     rates = body.rates
-    satoshis = body.satoshis
 
     wallet = bitgo.newWalletObject({ wallet: { id: self.state.properties.wallet.address } })
     wallet.signTransaction({ transactionHex: body.unsignedTx.transactionHex,
@@ -411,7 +410,7 @@ Client.prototype._currentReconcile = function (callback) {
       path = '/v1/wallet/' + self.state.properties.wallet.paymentId
       payload = { viewingId: viewingId, surveyorId: surveyorInfo.surveyorId, signedTx: signedTx.tx }
       self.roundtrip({ path: path, method: 'PUT', payload: payload }, function (err, response, body) {
-        var transaction
+        var satoshis, transaction
 
         self._log('_currentReconcile', { method: 'PUT', path: '/v1/wallet/...', errP: !!err })
         if (err) return callback(err)
@@ -419,7 +418,7 @@ Client.prototype._currentReconcile = function (callback) {
         transaction = { viewingId: viewingId,
                         surveyorId: surveyorInfo.surveyorId,
                         contribution: { fiat: { amount: amount, currency: currency },
-                                        rates: rates, satoshis: satoshis, fee: fee
+                                        rates: rates, satoshis: body.satoshis, fee: fee
                                       },
                         submissionStamp: body.paymentStamp,
                         submissionDate: self.options.verboseP ? new Date(body.paymentStamp) : undefined,
