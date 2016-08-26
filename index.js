@@ -410,7 +410,7 @@ Client.prototype._currentReconcile = function (callback) {
       path = '/v1/wallet/' + self.state.properties.wallet.paymentId
       payload = { viewingId: viewingId, surveyorId: surveyorInfo.surveyorId, signedTx: signedTx.tx }
       self.roundtrip({ path: path, method: 'PUT', payload: payload }, function (err, response, body) {
-        var satoshis, transaction
+        var transaction
 
         self._log('_currentReconcile', { method: 'PUT', path: '/v1/wallet/...', errP: !!err })
         if (err) return callback(err)
