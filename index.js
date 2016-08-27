@@ -22,10 +22,10 @@ var Client = function (personaId, options, state) {
     if ((option.lastIndexOf('P') + 1) === option.length) self.options[option] = Client.prototype.boolion(self.options[option])
   })
   if (typeof self.options.server === 'string') self.options.server = url.parse(self.options.server)
-  if (typeof options.roundtrip !== 'undefined') {
-    if (typeof options.roundtrip !== 'function') throw new Error('invalid roundtrip option (must be a function)')
+  if (typeof self.options.roundtrip !== 'undefined') {
+    if (typeof self.options.roundtrip !== 'function') throw new Error('invalid roundtrip option (must be a function)')
 
-    self._innerTrip = options.roundtrip.bind(self)
+    self._innerTrip = self.options.roundtrip.bind(self)
     self.roundtrip = function (params, callback) { self._innerTrip(params, self.options, callback) }
   } else {
     self.roundtrip = self._roundTrip
@@ -469,6 +469,7 @@ Client.prototype._registerViewing = function (viewingId, callback) {
       for (i = self.state.transactions.length - 1; i >= 0; i--) {
         if (self.state.transactions[i].viewingId !== viewingId) continue
 
+        // NB: use of `underscore.extend` requires that the parameter be `self.state.transactions[i]`
         underscore.extend(self.state.transactions[i],
                           { credential: JSON.stringify(credential), surveyorIds: body.surveyorIds,
                             count: body.surveyorIds.length, satoshis: body.satoshis, votes: 0 })
@@ -532,8 +533,8 @@ Client.prototype._commitBallot = function (ballot, transaction, callback) {
       break
     }
 
-    self._log('_commitBallot', { delayTime: 1 * 1000 })
-    callback(null, self.state, 1 * 1000)
+    self._log('_commitBallot', { delayTime: oneSecond })
+    callback(null, self.state, oneSecond)
   })
 }
 
