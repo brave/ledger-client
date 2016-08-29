@@ -271,7 +271,7 @@ Client.prototype.vote = function (publisher, viewingId) {
   if (i < 0) return
 
   this.state.ballots.push({ viewingId: transaction.viewingId, surveyorId: transaction.surveyorIds[transaction.votes],
-                            publisher: publisher })
+                            publisher: publisher, offset: transaction.votes })
   transaction.votes++
 
   return this.state
