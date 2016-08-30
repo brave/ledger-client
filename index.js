@@ -37,10 +37,11 @@ var Client = function (personaId, options, state) {
   if (self.state.wallet) throw new Error('deprecated state (alpha) format')
 }
 
-var oneSecond = 1 * 1000
-var oneMinute = 1 * 60 * 1000
-var tenMinutes = 10 * 60 * 1000
-var threeHours = 3 * 60 * 60 * 1000
+var msecs = { day: 24 * 60 * 60 * 1000,
+              hour: 60 * 60 * 1000,
+              minute: 60 * 1000,
+              second: 1000
+            }
 
 Client.prototype.sync = function (callback) {
   var ballot, ballots, delayTime, i, transaction
@@ -211,7 +212,7 @@ Client.prototype.reconcile = function (viewingId, callback) {
     return callback(null, null, delayTime)
   }
   if (this.state.currentReconcile) {
-    delayTime = random.randomInt({ min: oneSecond, max: this.options.debugP ? oneMinute : tenMinutes })
+    delayTime = random.randomInt({ min: msecs.second, max: (this.options.debugP ? 1 : 10) * msecs.minute })
     this._log('reconcile', { reason: 'already reconciling', delayTime: delayTime, reconcileStamp: this.state.reconcileStamp })
     return callback(null, null, delayTime)
   }
@@ -232,15 +233,15 @@ Client.prototype.reconcile = function (viewingId, callback) {
     for (i = self.state.transactions.length - 1; i >= 0; i--) {
       if (self.state.transactions[i].surveyorId !== surveyorInfo.surveyorId) continue
 
-      delayTime = random.randomInt({ min: oneSecond, max: self.options.debugP ? oneMinute : tenMinutes })
+      delayTime = random.randomInt({ min: msecs.second, max: (self.options.debugP ? 1 : 10) * msecs.minute })
       self._log('reconcile',
                 { reason: 'awaiting a new surveyorId', delayTime: delayTime, surveyorId: surveyorInfo.surveyorId })
       return callback(null, null, delayTime)
     }
 
     self.state.currentReconcile = { viewingId: viewingId, surveyorInfo: surveyorInfo, timestamp: 0 }
-    self._log('reconcile', { delayTime: oneMinute })
-    callback(null, self.state, oneMinute)
+    self._log('reconcile', { delayTime: msecs.minute })
+    callback(null, self.state, msecs.minute)
   })
 }
 
@@ -354,8 +355,8 @@ Client.prototype._registerPersona = function (callback) {
       self.state.reconcileStamp = self.state.bootStamp + self._backOff(self.state.properties.days)
       if (self.options.verboseP) self.state.reconcileDate = new Date(self.state.reconcileStamp)
 
-      self._log('_registerPersona', { delayTime: oneMinute })
-      callback(null, self.state, oneMinute)
+      self._log('_registerPersona', { delayTime: msecs.minute })
+      callback(null, self.state, msecs.minute)
     })
   })
 }
@@ -392,7 +393,7 @@ Client.prototype._currentReconcile = function (callback) {
                                    currency: currency
                                  })
 
-      delayTime = random.randomInt({ min: oneSecond, max: self.options.debugP ? oneMinute : tenMinutes })
+      delayTime = random.randomInt({ min: msecs.second, max: (self.options.debugP ? 1 : 10) * msecs.minute })
       self._log('_currentReconcile', { reason: 'balance < btc', balance: body.balance, btc: btc, delayTime: delayTime })
       return callback(null, self.state, delayTime)
     }
@@ -436,8 +437,8 @@ Client.prototype._currentReconcile = function (callback) {
         self._updateRules(function (err) {
           if (err) this._log('_updateRules', { message: err.toString() })
 
-          self._log('_currentReconcile', { delayTime: oneMinute })
-          callback(null, self.state, oneMinute)
+          self._log('_currentReconcile', { delayTime: msecs.minute })
+          callback(null, self.state, msecs.minute)
         })
       })
     })
@@ -473,8 +474,8 @@ Client.prototype._registerViewing = function (viewingId, callback) {
         underscore.extend(self.state.transactions[i],
                           { credential: JSON.stringify(credential), surveyorIds: body.surveyorIds,
                             count: body.surveyorIds.length, satoshis: body.satoshis, votes: 0 })
-        self._log('_registerViewing', { delayTime: oneMinute })
-        return callback(null, self.state, oneMinute)
+        self._log('_registerViewing', { delayTime: msecs.minute })
+        return callback(null, self.state, msecs.minute)
       }
 
       callback(new Error('viewingId ' + viewingId + ' not found in transaction list'))
@@ -498,12 +499,12 @@ Client.prototype._prepareBallot = function (ballot, transaction, callback) {
     ballot.prepareBallot = underscore.defaults(body, { server: self.options.server })
 
     now = underscore.now()
-    delayTime = random.randomInt({ min: oneSecond, max: self.options.debugP ? oneMinute : threeHours })
+    delayTime = random.randomInt({ min: msecs.second, max: self.options.debugP ? msecs.minute : 3 * msecs.hour })
     ballot.delayStamp = now + delayTime
     if (self.options.verboseP) ballot.delayDate = new Date(ballot.delayStamp)
 
-    self._log('_prepareBallot', { delayTime: oneMinute })
-    callback(null, self.state, oneMinute)
+    self._log('_prepareBallot', { delayTime: msecs.minute })
+    callback(null, self.state, msecs.minute)
   })
 }
 
@@ -533,13 +534,13 @@ Client.prototype._commitBallot = function (ballot, transaction, callback) {
       break
     }
 
-    self._log('_commitBallot', { delayTime: oneSecond })
-    callback(null, self.state, oneSecond)
+    self._log('_commitBallot', { delayTime: msecs.second })
+    callback(null, self.state, msecs.second)
   })
 }
 
 Client.prototype._backOff = function (days) {
-  return (this.options.debugP ? 1 : days * 86400) * 1000
+  return (this.options.debugP ? 1 : days * msecs.day) * msecs.second
 }
 
 Client.prototype._log = function (who, args) {
