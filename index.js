@@ -534,13 +534,13 @@ Client.prototype._commitBallot = function (ballot, transaction, callback) {
       break
     }
 
-    self._log('_commitBallot', { delayTime: msecs.second })
-    callback(null, self.state, msecs.second)
+    self._log('_commitBallot', { delayTime: msecs.minute })
+    callback(null, self.state, msecs.minute)
   })
 }
 
 Client.prototype._backOff = function (days) {
-  return (this.options.debugP ? 1 : days * msecs.day) * msecs.second
+  return (days * (this.options.debugP ? msecs.second : msecs.day))
 }
 
 Client.prototype._log = function (who, args) {
