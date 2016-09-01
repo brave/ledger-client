@@ -44,6 +44,8 @@ var msecs = { day: 24 * 60 * 60 * 1000,
             }
 
 Client.prototype.sync = function (callback) {
+  var self = this
+
   var ballot, ballots, delayTime, i, transaction
   var now = underscore.now()
 
@@ -53,6 +55,15 @@ Client.prototype.sync = function (callback) {
     this.state.ruleset = ledgerPublisher.rules
 
     this._updateRules(function (err) { if (err) this._log('updateRules', { message: err.toString() }) })
+  }
+
+  if (this.state.rulesStamp < now) {
+    return this._updateRules(function (err) {
+      if (err) self._log('_updateRules', { message: err.toString() })
+
+      self._log('sync', { delayTime: msecs.minute })
+      callback(null, self.state, msecs.minute)
+    })
   }
 
   if (this.state.delayStamp) {
@@ -435,7 +446,7 @@ Client.prototype._currentReconcile = function (callback) {
         if (self.options.verboseP) self.state.reconcileDate = new Date(self.state.reconcileStamp)
 
         self._updateRules(function (err) {
-          if (err) this._log('_updateRules', { message: err.toString() })
+          if (err) self._log('_updateRules', { message: err.toString() })
 
           self._log('_currentReconcile', { delayTime: msecs.minute })
           callback(null, self.state, msecs.minute)
@@ -552,6 +563,9 @@ Client.prototype._updateRules = function (callback) {
   var path
   var self = this
 
+  self.state.rulesStamp = underscore.now() + msecs.hour
+  if (self.options.verboseP) self.state.rulesDate = new Date(self.state.rulesStamp)
+
   path = '/v1/publisher/ruleset'
   self.roundtrip({ path: path, method: 'GET' }, function (err, response, ruleset) {
     var validity
@@ -571,6 +585,8 @@ Client.prototype._updateRules = function (callback) {
       ledgerPublisher.rules = ruleset
     }
 
+    self.state.rulesStamp = underscore.now() + (self.options.debugP ? msecs.hour : msecs.day)
+    if (self.options.verboseP) self.state.rulesDate = new Date(self.state.rulesStamp)
     callback()
   })
 }
