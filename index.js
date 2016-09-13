@@ -46,7 +46,7 @@ var msecs = { day: 24 * 60 * 60 * 1000,
 Client.prototype.sync = function (callback) {
   var self = this
 
-  var ballot, ballots, delayTime, i, transaction
+  var ballot, ballots, i, transaction
   var now = underscore.now()
 
   if (typeof callback !== 'function') throw new Error('sync missing callback parameter')
@@ -66,21 +66,10 @@ Client.prototype.sync = function (callback) {
     })
   }
 
-  if (this.state.delayStamp) {
-    delayTime = this.state.delayStamp - now
-    if (delayTime > 0) {
-      this._log('sync', { reason: 'next event', delayTime: delayTime })
-      return callback(null, null, delayTime)
-    }
-    delete this.state.delayStamp
-  }
-
   if (!this.credentials) this.credentials = {}
 
   if (!this.state.persona) return this._registerPersona(callback)
   this.credentials.persona = new anonize.Credential(this.state.persona)
-
-  if (this.state.currentReconcile) return this._currentReconcile(callback)
 
   ballots = underscore.shuffle(this.state.ballots)
   for (i = ballots.length - 1; i >= 0; i--) {
@@ -104,6 +93,8 @@ Client.prototype.sync = function (callback) {
       this._log('_registerViewing', { errP: 1, message: ex.toString(), stack: ex.stack })
     }
   }, this)
+
+  if (this.state.currentReconcile) return this._currentReconcile(callback)
 
   this._log('sync', { result: true })
   return true
