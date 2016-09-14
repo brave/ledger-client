@@ -663,7 +663,32 @@ Client.prototype.boolion = function (value) {
     object: function () {
       return (!!value)
     }
-  }[typeof value] || function () { return true }
+  }[typeof value] || function () { return false }
+
+  return f()
+}
+
+Client.prototype.numbion = function (value) {
+  if (typeof value === 'string') value = parseInt(value, 10)
+
+  var f = {
+    undefined: function () {
+      return 0
+    },
+
+    boolean: function () {
+      return (value ? 1 : 0)
+    },
+
+    // handles `Infinity` and `NaN`
+    number: function () {
+      return (Number.isFinite(value) ? value : 0)
+    },
+
+    object: function () {
+      return (value ? 1 : 0)
+    }
+  }[typeof value] || function () { return 0 }
 
   return f()
 }
