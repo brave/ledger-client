@@ -54,7 +54,11 @@ Client.prototype.sync = function (callback) {
   if (!this.state.ruleset) {
     this.state.ruleset = ledgerPublisher.rules
 
-    this._updateRules(function (err) { if (err) this._log('updateRules', { message: err.toString() }) })
+    ledgerPublisher.getRules(function (rules) {
+      if (rules) self.state.ruleset = rules
+
+      self._updateRules(function (err) { if (err) self._log('updateRules', { message: err.toString() }) })
+    })
   }
 
   if (this.state.rulesStamp < now) {
