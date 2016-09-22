@@ -105,7 +105,7 @@ Client.prototype.sync = function (callback) {
   return true
 }
 
-var propertyList = [ 'setting', 'fee' ]
+var propertyList = [ 'setting', 'days', 'fee' ]
 
 Client.prototype.getBraveryProperties = function () {
   var errP
@@ -164,6 +164,16 @@ Client.prototype.getWalletProperties = function (amount, currency, callback) {
 
     callback(null, body)
   })
+}
+
+Client.prototype.setTimeUntilReconcile = function (timestamp, callback) {
+  var now = underscore.now()
+
+  if ((!timestamp) || (timestamp < now)) timestamp = now + this._backOff(this.state.properties.days)
+  this.state.reconcileStamp = timestamp
+  if (this.options.verboseP) this.state.reconcileDate = new Date(this.state.reconcileStamp)
+
+  callback(null, this.state)
 }
 
 Client.prototype.timeUntilReconcile = function () {
@@ -290,6 +300,22 @@ Client.prototype.report = function () {
 
   this.logging = []
   if (entries.length) return entries
+}
+
+Client.prototype.recoverWallet = function (recoveryId, passPhrase, callback) {
+  var self = this
+
+  var path, payload
+
+  path = '/v1/wallet/' + self.state.properties.wallet.paymentId + '/recover'
+  payload = { recoveryId: recoveryId, passPhrase: passPhrase }
+  self.roundtrip({ path: path, method: 'PUT', payload: payload }, function (err, response, body) {
+    self._log('recoverWallet', { method: 'PUT', path: '/v1/wallet/.../recover', errP: !!err })
+    if (err) return callback(err)
+
+    self._log('recoverWallet', body)
+    callback(null, body)
+  })
 }
 
 /*
@@ -595,6 +621,8 @@ Client.prototype._roundTrip = function (params, callback) {
   var client = self.options.server.protocol === 'https:' ? https : http
 
   params = underscore.extend(underscore.pick(self.options.server, [ 'protocol', 'hostname', 'port' ]), params)
+  params.headers = underscore.defaults(params.headers || {},
+                                       { 'content-type': 'application/json; charset=utf-8', 'accept-encoding': '' })
 
   request = client.request(underscore.omit(params, [ 'useProxy', 'payload' ]), function (response) {
     var body = ''
@@ -608,8 +636,14 @@ Client.prototype._roundTrip = function (params, callback) {
       if (params.timeout) request.setTimeout(0)
 
       if (self.options.verboseP) {
+        console.log('[ response for ' + params.method + ' ' + self.options.server.protocol + '//' +
+                    self.options.server.hostname + params.path + ' ]')
         console.log('>>> HTTP/' + response.httpVersionMajor + '.' + response.httpVersionMinor + ' ' + response.statusCode +
                    ' ' + (response.statusMessage || ''))
+        underscore.keys(response.headers).forEach(function (header) {
+          console.log('>>> ' + header + ': ' + response.headers[header])
+        })
+        console.log('>>>')
         console.log('>>> ' + body.split('\n').join('\n>>> '))
       }
       if (Math.floor(response.statusCode / 100) !== 2) {
@@ -641,9 +675,16 @@ Client.prototype._roundTrip = function (params, callback) {
   if (!self.options.verboseP) return
 
   console.log('<<< ' + params.method + ' ' + params.protocol + '//' + params.hostname + params.path)
+  underscore.keys(params.headers).forEach(function (header) { console.log('<<< ' + header + ': ' + params.headers[header]) })
   console.log('<<<')
   if (params.payload) console.log('<<< ' + JSON.stringify(params.payload, null, 2).split('\n').join('\n<<< '))
 }
+
+/*
+ *
+ * utilities
+ *
+ */
 
 Client.prototype.boolion = function (value) {
   var f = {

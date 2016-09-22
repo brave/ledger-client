@@ -47,7 +47,6 @@ where the value for `personaId` (if not `null`) is a
         }
 
 and `state` is either: whatever was previously stored in persistent storage, or `{}`.
-(
 
 The client endpoint should not be referenced until the callback is invoked.
 
@@ -68,7 +67,11 @@ where `properties` is a list of configuration options:
 To update the Bravery properties for the Ledger,
 the client calls:
 
-        this.client.setBraveryProperties(properties, callback)
+        this.client.setBraveryProperties(properties, function (err, result) {
+          if (err) return console.log(err)
+
+          if (result) result must be put into persistent storage as the client's new state
+        })
 
 Note that this will likely result in the `callback` being invoked with a `result` parameter,
 indicating that persistent storage be updated.
@@ -83,13 +86,21 @@ indicating that persistent storage be updated.
           console.log('wallet balance=' + properties.balance + 'BTC')
         })
 
-### Reconcilation
+### Wallet Recovery
+
+        this.client.recoverWallet(recoveryId, passPhrase, function (err, result) {
+          if (err) return console.log(err)
+
+          console.log('recovered amount=' + result.satoshis + ' satoshis')
+        })
+
+### Reconcilation, Part One
 The client should periodical call:
 
         var nowP = client.isReadyToReconcile()
 
 If `true` is returned,
-then it is time for the monthly reconcilation to occur.
+then it is time for the periodic reconcilation to occur.
 
 Alternatively,
 
@@ -99,6 +110,23 @@ will return `false` if reconcilation is already underway,
 or the number of milliseconds before reconcilation should occur
 (a negative number indicates that reconcilation is overdue).
 
+It may be necessary to reset the reconcilation timestamp,
+
+        var timestamp = new Date().getTime()  // reconcile now (for some reason)
+
+        this.client.setTimeUntilReconcile(timestamp, function (err, result) {
+          if (err) return console.log(err)
+
+          if (result) result must be put into persistent storage as the client's new state
+        })
+
+The more likely invocation is
+
+        this.client.setTimeUntilReconcile(null, function (err, result) { ... })
+
+which resets the reconcilation timestamp.
+
+### Reconcilation, Part Deux
 When it is time to reconcile,
 the client calls:
 
@@ -139,3 +167,16 @@ Each entry contains three fields:
 The file `blastoff.js` is a (non-sensical) example of how to use the API --
 it blasts through the various API calls,
 doing a sanity check.
+Invoke using:
+
+    % npm run blastoff
+    ...
+    please click here for payment: bitcoin:...?amount=0.0083
+    ^C
+
+    // transfer funds to user wallet, wait as long (or as little) as you want
+
+    % npm run touchdown
+
+When reconciliation completes (but before voting occurs), the process will exit.
+Examine `config.json` to see the entry in the `transactions` array.
