@@ -317,30 +317,38 @@ Client.prototype._publisherVoteData = function (viewingIds) {
     viewingIds = null
   }
 
-  var ballots = (
+  var transactions = (
     viewingIds
-      ? this.state.ballots.filter(function (ballot) {
-        return ballot && ballot.viewingId && (viewingIds.indexOf(ballot.viewingId) > -1)
+      ? this.state.transactions.filter(function (tx) {
+        
+        return tx && tx.viewingId && tx.ballots && (viewingIds.indexOf(tx.viewingId) > -1)
       })
 
-    : this.state.ballots
+    : this.state.transactions
   )
 
   var publishersWithVotes = {}
   var totalVotes = 0
 
-  for (var i = ballots.length - 1; i >= 0; i--) {
-    var ballot = ballots[i]
-    var publisher = ballot.publisher
+  for (var i = transactions.length - 1; i >= 0; i--) {
+    var tx = transactions[i]
+    var ballots = tx.ballots
 
-    var voteDataForPublisher = publishersWithVotes[publisher] || {}
+    var publishersOnBallot = underscore.keys(ballots)
 
-    var publisherVotes = (voteDataForPublisher.votes || 0) + 1
-    totalVotes++
+    for (var j = publishersOnBallot.length -1; j >= 0; j--) {
+      var publisher = publishersOnBallot[j]
 
-    voteDataForPublisher.votes = publisherVotes
+      var voteDataForPublisher = publishersWithVotes[publisher] || {}
 
-    publishersWithVotes[publisher] = voteDataForPublisher
+      var voteCount = ballots[publisher]
+      var publisherVotes = (voteDataForPublisher.votes || 0) + voteCount
+      totalVotes += voteCount
+
+      voteDataForPublisher.votes = publisherVotes
+      publishersWithVotes[publisher] = voteDataForPublisher
+    }
+
   }
 
   var totalContributionAmountSatoshis = null
@@ -389,6 +397,32 @@ Client.prototype._transactionByViewingId = function (viewingId) {
   }
 
   return null
+}
+
+Client.prototype._getTransactionCSVText = function (viewingIds) {
+  return this._getTransactionCSVRows(viewingIds).join('\n')
+}
+
+Client.prototype._getTransactionCSVRows = function (viewingIds) {
+    let txContribData = this._publisherVoteData(viewingIds)
+    var publishers = underscore.keys(txContribData)
+
+    var currency = txContribData[publishers[0]].contribution.currency
+    var headerRow = ['Publisher','Votes','Fraction','BTC', currency].join(',')
+
+    var rows = [headerRow]
+
+    rows = rows.concat(publishers.map(function (pub) { 
+        var pubRow = txContribData[pub]
+        return [pub,
+                pubRow.votes,
+                pubRow.fraction,
+                pubRow.contribution.satoshis / Math.pow(10, 10), 
+                pubRow.contribution.fiat.toFixed(2) + ' ' + pubRow.contribution.currency
+               ].join(',') 
+    }))
+
+    return rows
 }
 
 Client.prototype.vote = function (publisher, viewingId) {
