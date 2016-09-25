@@ -1,11 +1,11 @@
 {
   "name": "ledger-client",
-  "version": "0.8.66",
+  "version": "0.8.77",
   "description": "An example of client code for the Brave ledger.",
   "main": "index.js",
   "scripts": {
-    "blastoff": "DEBUG=*,-babel ./blastoff.js -d -l -v -s http://127.0.0.1:3001 -p `uuidgen`",
-    "liftoff": "DEBUG=*,-babel ./blastoff.js -d -l -v -s http://127.0.0.1:3001 -f ./config.json",
+    "blastoff":  "DEBUG=*,-babel ./blastoff.js -d -l -v -s http://127.0.0.1:3001 -p `uuidgen`",
+    "touchdown": "DEBUG=*,-babel ./blastoff.js -d -l -v -s http://127.0.0.1:3001 -f ./config.json",
     "lint": "gulp lint",
     "test": "npm run test-security",
     "test-security": "nsp check"
@@ -23,7 +23,7 @@
   "dependencies": {
     "bitgo": "^1.8.0",
     "joi": "^9.0.0-2",
-    "ledger-publisher": "^0.8.63",
+    "ledger-publisher": "^0.8.69",
     "node-anonize2-relic-emscripten": "https://github.com/brave/node-anonize2-relic-emscripten.git",
     "node-uuid": "^1.4.7",
     "random-lib": "2.1.0",
