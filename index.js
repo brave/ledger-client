@@ -275,158 +275,8 @@ Client.prototype.ballots = function (viewingId) {
   return count
 }
 
-Client.prototype._totalContribution = function (viewingIds) {
-  var txs = (viewingIds && viewingIds.length
-             ? this.state.transactions.filter(function (tx) {
-               return (tx && tx.viewingId && viewingIds.indexOf(tx.viewingId) > -1)
-             })
-             : this.state.transactions
-            )
-
-  var totalContribution = {
-    satoshis: 0,
-    fiat: { amount: 0, currency: null },
-    fee: 0
-  }
-
-  for (var i = txs.length - 1; i >= 0; i--) {
-    var tx = txs[i] || {}
-    var txContribution = tx.contribution || {}
-
-    totalContribution.satoshis += 0 || txContribution.satoshis
-
-    if (txContribution.fiat) {
-      if (!totalContribution.fiat.currency && txContribution.fiat.currency) {
-        totalContribution.fiat.currency = txContribution.fiat.currency
-      }
-
-      if (totalContribution.fiat.currency === txContribution.fiat.currency) {
-        totalContribution.fiat.amount += 0 || (txContribution.fiat && txContribution.fiat.amount)
-      } else {
-        throw new Error('Client#_totalContribution cannot handle multiple fiat currencies')
-      }
-    }
-
-    totalContribution.fee += 0 || txContribution.fee
-  }
-
-  return totalContribution
-}
-
-Client.prototype._publisherVoteData = function (viewingIds) {
-  if (viewingIds && typeof (viewingIds) === 'string') {
-    viewingIds = [viewingIds]
-  }
-  if (viewingIds && !viewingIds.length) {
-    viewingIds = null
-  }
-
-  var transactions = (
-    viewingIds
-      ? this.state.transactions.filter(function (tx) {
-        
-        return tx && tx.viewingId && tx.ballots && (viewingIds.indexOf(tx.viewingId) > -1)
-      })
-
-    : this.state.transactions
-  )
-
-  var publishersWithVotes = {}
-  var totalVotes = 0
-
-  for (var i = transactions.length - 1; i >= 0; i--) {
-    var tx = transactions[i]
-    var ballots = tx.ballots
-
-    var publishersOnBallot = underscore.keys(ballots)
-
-    for (var j = publishersOnBallot.length -1; j >= 0; j--) {
-      var publisher = publishersOnBallot[j]
-
-      var voteDataForPublisher = publishersWithVotes[publisher] || {}
-
-      var voteCount = ballots[publisher]
-      var publisherVotes = (voteDataForPublisher.votes || 0) + voteCount
-      totalVotes += voteCount
-
-      voteDataForPublisher.votes = publisherVotes
-      publishersWithVotes[publisher] = voteDataForPublisher
-    }
-
-  }
-
-  var totalContributionAmountSatoshis = null
-  var totalContributionAmountFiat = null
-  var currency = null
-
-  var totalContribution = this._totalContribution(viewingIds)
-
-  if (totalContribution) {
-    totalContributionAmountSatoshis = totalContributionAmountSatoshis || totalContribution.satoshis
-    totalContributionAmountFiat = totalContributionAmountFiat || (totalContribution.fiat && totalContribution.fiat.amount)
-    currency = currency || (totalContribution.fiat && totalContribution.fiat.currency)
-  }
-
-  for (var publisher in publishersWithVotes) {
-    var voteDataForPublisher = publishersWithVotes[publisher]
-    var fraction = voteDataForPublisher.fraction = voteDataForPublisher.votes / totalVotes
-
-    var contribution = voteDataForPublisher.contribution || {}
-    if (totalContributionAmountSatoshis) {
-      contribution.satoshis = Math.round(totalContributionAmountSatoshis * fraction)
-    }
-    if (totalContributionAmountFiat) {
-      contribution.fiat = totalContributionAmountFiat * fraction
-    }
-    if (currency) {
-      contribution.currency = currency
-    }
-
-    voteDataForPublisher.contribution = contribution
-
-    publishersWithVotes[publisher] = voteDataForPublisher
-  }
-
-  return publishersWithVotes
-}
-
-Client.prototype._transactionByViewingId = function (viewingId) {
-  if (viewingId) {
-    for (var i = this.state.transactions.length - 1; i >= 0; i--) {
-      var curViewingId = this.state.transactions[i] && this.state.transactions[i].viewingId
-      if (curViewingId && curViewingId === viewingId) {
-        return this.state.transactions[i]
-      }
-    }
-  }
-
-  return null
-}
-
-Client.prototype._getTransactionCSVText = function (viewingIds) {
+Client.prototype.getTransactionCSVText = function (viewingIds) {
   return this._getTransactionCSVRows(viewingIds).join('\n')
-}
-
-Client.prototype._getTransactionCSVRows = function (viewingIds) {
-    let txContribData = this._publisherVoteData(viewingIds)
-    var publishers = underscore.keys(txContribData)
-
-    var currency = txContribData[publishers[0]].contribution.currency
-    var headerRow = ['Publisher','Votes','Fraction','BTC', currency].join(',')
-
-    var rows = [headerRow]
-
-    rows = rows.concat(publishers.map(function (pub) { 
-        var pubRow = txContribData[pub]
-        return [pub,
-                pubRow.votes,
-                pubRow.fraction,
-                pubRow.contribution.satoshis / Math.pow(10, 10), 
-                pubRow.contribution.fiat.toFixed(2) + ' ' + pubRow.contribution.currency
-               ].join(',') 
-    }))
-
-    return rows
 }
 
 Client.prototype.vote = function (publisher, viewingId) {
@@ -765,6 +615,160 @@ Client.prototype._updateRules = function (callback) {
     if (self.options.verboseP) self.state.rulesDate = new Date(self.state.rulesStamp)
     callback()
   })
+}
+
+Client.prototype._totalContribution = function (viewingIds) {
+  var txs = (viewingIds && viewingIds.length
+             ? this.state.transactions.filter(function (tx) {
+               return (tx && tx.viewingId && viewingIds.indexOf(tx.viewingId) > -1)
+             })
+             : this.state.transactions
+            )
+
+  var totalContribution = {
+    satoshis: 0,
+    fiat: { amount: 0, currency: null },
+    fee: 0
+  }
+
+  for (var i = txs.length - 1; i >= 0; i--) {
+    var tx = txs[i] || {}
+    var txContribution = tx.contribution || {}
+
+    totalContribution.satoshis += 0 || txContribution.satoshis
+
+    if (txContribution.fiat) {
+      if (!totalContribution.fiat.currency && txContribution.fiat.currency) {
+        totalContribution.fiat.currency = txContribution.fiat.currency
+      }
+
+      if (totalContribution.fiat.currency === txContribution.fiat.currency) {
+        totalContribution.fiat.amount += 0 || (txContribution.fiat && txContribution.fiat.amount)
+      } else {
+        throw new Error('Client#_totalContribution cannot handle multiple fiat currencies')
+      }
+    }
+
+    totalContribution.fee += 0 || txContribution.fee
+  }
+
+  return totalContribution
+}
+
+Client.prototype._publisherVoteData = function (viewingIds) {
+  var i, j, publisher, voteDataForPublisher
+
+  if (viewingIds && typeof (viewingIds) === 'string') {
+    viewingIds = [viewingIds]
+  }
+  if (viewingIds && !viewingIds.length) {
+    viewingIds = null
+  }
+
+  var transactions = (
+    viewingIds
+      ? this.state.transactions.filter(function (tx) {
+        return tx && tx.viewingId && tx.ballots && (viewingIds.indexOf(tx.viewingId) > -1)
+      })
+    : this.state.transactions
+  )
+
+  var publishersWithVotes = {}
+  var totalVotes = 0
+
+  var ballots, voteCount, publisherVotes, publishersOnBallot, tx
+  for (i = transactions.length - 1; i >= 0; i--) {
+    tx = transactions[i]
+    ballots = tx.ballots
+
+    publishersOnBallot = underscore.keys(ballots)
+
+    for (j = publishersOnBallot.length - 1; j >= 0; j--) {
+      publisher = publishersOnBallot[j]
+
+      voteDataForPublisher = publishersWithVotes[publisher] || {}
+
+      voteCount = ballots[publisher]
+      publisherVotes = (voteDataForPublisher.votes || 0) + voteCount
+      totalVotes += voteCount
+
+      voteDataForPublisher.votes = publisherVotes
+      publishersWithVotes[publisher] = voteDataForPublisher
+    }
+  }
+
+  var totalContributionAmountSatoshis = null
+  var totalContributionAmountFiat = null
+  var currency = null
+
+  var totalContribution = this._totalContribution(viewingIds)
+
+  if (totalContribution) {
+    totalContributionAmountSatoshis = totalContributionAmountSatoshis || totalContribution.satoshis
+    totalContributionAmountFiat = totalContributionAmountFiat || (totalContribution.fiat && totalContribution.fiat.amount)
+    currency = currency || (totalContribution.fiat && totalContribution.fiat.currency)
+  }
+
+  var fraction, contribution
+  for (publisher in publishersWithVotes) {
+    voteDataForPublisher = publishersWithVotes[publisher]
+    fraction = voteDataForPublisher.fraction = voteDataForPublisher.votes / totalVotes
+
+    contribution = voteDataForPublisher.contribution || {}
+    if (totalContributionAmountSatoshis) {
+      contribution.satoshis = Math.round(totalContributionAmountSatoshis * fraction)
+    }
+    if (totalContributionAmountFiat) {
+      contribution.fiat = totalContributionAmountFiat * fraction
+    }
+    if (currency) {
+      contribution.currency = currency
+    }
+
+    voteDataForPublisher.contribution = contribution
+
+    publishersWithVotes[publisher] = voteDataForPublisher
+  }
+
+  return publishersWithVotes
+}
+
+Client.prototype._transactionByViewingId = function (viewingId) {
+  var curViewingId, i
+
+  if (viewingId) {
+    for (i = this.state.transactions.length - 1; i >= 0; i--) {
+      curViewingId = this.state.transactions[i] && this.state.transactions[i].viewingId
+      if (curViewingId && curViewingId === viewingId) {
+        return this.state.transactions[i]
+      }
+    }
+  }
+
+  return null
+}
+
+Client.prototype._getTransactionCSVRows = function (viewingIds) {
+  let txContribData = this._publisherVoteData(viewingIds)
+  var publishers = underscore.keys(txContribData)
+
+  var currency = txContribData[publishers[0]].contribution.currency
+  var headerRow = ['Publisher', 'Votes', 'Fraction', 'BTC', currency].join(',')
+
+  var rows = [headerRow]
+
+  var pubRow
+  rows = rows.concat(publishers.map(function (pub) {
+    pubRow = txContribData[pub]
+    return [pub,
+            pubRow.votes,
+            pubRow.fraction,
+            pubRow.contribution.satoshis / Math.pow(10, 10),
+            pubRow.contribution.fiat.toFixed(2) + ' ' + pubRow.contribution.currency
+           ].join(',')
+  }))
+
+  return rows
 }
 
 // round-trip to the ledger
