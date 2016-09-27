@@ -135,6 +135,13 @@ Client.prototype.getWalletAddress = function () {
   return this.state.properties && this.state.properties.wallet && this.state.properties.wallet.address
 }
 
+Client.prototype.getWalletPassphrase = function () {
+  this._log('getWalletPassphrase')
+
+  return this.state.properties && this.state.properties.wallet && this.state.properties.wallet.keychains &&
+         this.state.properties.wallet.keychains.passphrase
+}
+
 Client.prototype.getWalletProperties = function (amount, currency, callback) {
   var self = this
 
@@ -749,7 +756,7 @@ Client.prototype._transactionByViewingId = function (viewingId) {
 }
 
 Client.prototype._getTransactionCSVRows = function (viewingIds) {
-  let txContribData = this._publisherVoteData(viewingIds)
+  var txContribData = this._publisherVoteData(viewingIds)
   var publishers = underscore.keys(txContribData)
 
   var currency = txContribData[publishers[0]].contribution.currency
