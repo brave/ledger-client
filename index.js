@@ -8,6 +8,7 @@ var random = require('random-lib')
 var underscore = require('underscore')
 var url = require('url')
 var uuid = require('node-uuid')
+var txUtil = require('./util.js')
 
 var Client = function (personaId, options, state) {
   if (!(this instanceof Client)) return new Client(personaId, options, state)
@@ -275,158 +276,92 @@ Client.prototype.ballots = function (viewingId) {
   return count
 }
 
-Client.prototype._totalContribution = function (viewingIds) {
-  var txs = (viewingIds && viewingIds.length
-             ? this.state.transactions.filter(function (tx) {
-               return (tx && tx.viewingId && viewingIds.indexOf(tx.viewingId) > -1)
-             })
-             : this.state.transactions
-            )
 
-  var totalContribution = {
-    satoshis: 0,
-    fiat: { amount: 0, currency: null },
-    fee: 0
-  }
-
-  for (var i = txs.length - 1; i >= 0; i--) {
-    var tx = txs[i] || {}
-    var txContribution = tx.contribution || {}
-
-    totalContribution.satoshis += 0 || txContribution.satoshis
-
-    if (txContribution.fiat) {
-      if (!totalContribution.fiat.currency && txContribution.fiat.currency) {
-        totalContribution.fiat.currency = txContribution.fiat.currency
-      }
-
-      if (totalContribution.fiat.currency === txContribution.fiat.currency) {
-        totalContribution.fiat.amount += 0 || (txContribution.fiat && txContribution.fiat.amount)
-      } else {
-        throw new Error('Client#_totalContribution cannot handle multiple fiat currencies')
-      }
-    }
-
-    totalContribution.fee += 0 || txContribution.fee
-  }
-
-  return totalContribution
+/**
+ * Gives a contribution summary for an array of one or more transactions
+ * @example
+ * txUtil.getTotalContribution(client.state.transactions)
+ * // { satoshis: 1627832, fiat: { amount: 10, currency: 'USD' }, fee: 19900 }
+ *
+ * @param {Object[]} transactions - array of one or more ledger transactions objects (see `client.state.transactions` entries)
+ * @param {string[]} viewingIds - OPTIONAL array/string containing one or more viewingIds to filter by
+ *                            if null or undefined, all transactions are used
+ */
+Client.prototype.totalContribution = function (viewingIds) {
+  return txUtil.getTotalContribution(this.state.transactions, viewingIds)
 }
 
-Client.prototype._publisherVoteData = function (viewingIds) {
-  if (viewingIds && typeof (viewingIds) === 'string') {
-    viewingIds = [viewingIds]
-  }
-  if (viewingIds && !viewingIds.length) {
-    viewingIds = null
-  }
 
-  var transactions = (
-    viewingIds
-      ? this.state.transactions.filter(function (tx) {
-        
-        return tx && tx.viewingId && tx.ballots && (viewingIds.indexOf(tx.viewingId) > -1)
-      })
-
-    : this.state.transactions
-  )
-
-  var publishersWithVotes = {}
-  var totalVotes = 0
-
-  for (var i = transactions.length - 1; i >= 0; i--) {
-    var tx = transactions[i]
-    var ballots = tx.ballots
-
-    var publishersOnBallot = underscore.keys(ballots)
-
-    for (var j = publishersOnBallot.length -1; j >= 0; j--) {
-      var publisher = publishersOnBallot[j]
-
-      var voteDataForPublisher = publishersWithVotes[publisher] || {}
-
-      var voteCount = ballots[publisher]
-      var publisherVotes = (voteDataForPublisher.votes || 0) + voteCount
-      totalVotes += voteCount
-
-      voteDataForPublisher.votes = publisherVotes
-      publishersWithVotes[publisher] = voteDataForPublisher
-    }
-
-  }
-
-  var totalContributionAmountSatoshis = null
-  var totalContributionAmountFiat = null
-  var currency = null
-
-  var totalContribution = this._totalContribution(viewingIds)
-
-  if (totalContribution) {
-    totalContributionAmountSatoshis = totalContributionAmountSatoshis || totalContribution.satoshis
-    totalContributionAmountFiat = totalContributionAmountFiat || (totalContribution.fiat && totalContribution.fiat.amount)
-    currency = currency || (totalContribution.fiat && totalContribution.fiat.currency)
-  }
-
-  for (var publisher in publishersWithVotes) {
-    var voteDataForPublisher = publishersWithVotes[publisher]
-    var fraction = voteDataForPublisher.fraction = voteDataForPublisher.votes / totalVotes
-
-    var contribution = voteDataForPublisher.contribution || {}
-    if (totalContributionAmountSatoshis) {
-      contribution.satoshis = Math.round(totalContributionAmountSatoshis * fraction)
-    }
-    if (totalContributionAmountFiat) {
-      contribution.fiat = totalContributionAmountFiat * fraction
-    }
-    if (currency) {
-      contribution.currency = currency
-    }
-
-    voteDataForPublisher.contribution = contribution
-
-    publishersWithVotes[publisher] = voteDataForPublisher
-  }
-
-  return publishersWithVotes
+/**
+ * Get transactions filtered by one or more viewingIds
+ * @example
+ * client.getTransactionsByViewingIds('0ef3a02d-ffdd-41f1-a074-7a7eb1e8c332')
+ * // [ { viewingId: '0ef3a02d-ffdd-41f1-a074-7a7eb1e8c332',
+ * //     surveyorId: 'DQfCj8PHdIEJOZp9/L+FZcozgvYoIVSjPSdwqRYQDr0',
+ * //     contribution: { fiat: [Object], rates: [Object], satoshis: 813916, fee: 8858 },
+ * //    ...
+ * //    }]
+ *
+ * @param {string[]} viewingIds - array/string with one or more viewingIds to filter transactions by
+ *                            if null or undefined, all transactions are returned
+ */
+Client.prototype.getTransactionsByViewingIds = function (viewingIds) {
+  return txUtil.getTransactionsByViewingIds(this.state.transactions, viewingIds)
 }
 
-Client.prototype._transactionByViewingId = function (viewingId) {
-  if (viewingId) {
-    for (var i = this.state.transactions.length - 1; i >= 0; i--) {
-      var curViewingId = this.state.transactions[i] && this.state.transactions[i].viewingId
-      if (curViewingId && curViewingId === viewingId) {
-        return this.state.transactions[i]
-      }
-    }
-  }
-
-  return null
+/**
+ * Gives a summary of votes/contributions by Publisher for one/more/all transactions
+ * @example
+ * client.publisherVoteData(['0ef3a02d-ffdd-41f1-a074-7a7eb1e8c332'])
+ * // { 
+ * //  'chronicle.com':
+ * //     { votes: 2,
+ * //       fraction: 0.04081632653061224,
+ * //       contribution: { satoshis: 33221, fiat: 0.2040816326530612, currency: 'USD' } },
+ * //  'waitbutwhy.com':
+ * //     { votes: 3,
+ * //       fraction: 0.061224489795918366,
+ * //       contribution: { satoshis: 49832, fiat: 0.30612244897959184, currency: 'USD' } },
+ * //  'archlinux.org':
+ * //     { votes: 1,
+ * //       fraction: 0.02040816326530612,
+ * //       contribution: { satoshis: 16611, fiat: 0.1020408163265306, currency: 'USD' } },
+ * //   /.../
+ * // }
+ *
+ * @param {string[]=} viewingIds - OPTIONAL array/string with one or more viewingIds to filter transactions by (if empty, uses all tx)
+ **/
+Client.prototype.publisherVoteData = function (viewingIds) {
+  return txUtil.getPublisherVoteData(this.state.transactions, viewingIds)
 }
 
-Client.prototype._getTransactionCSVText = function (viewingIds) {
-  return this._getTransactionCSVRows(viewingIds).join('\n')
+/**
+ * Generates a contribution breakdown by publisher in an array of CSV rows (for one/more/all transactions)
+ * @example
+ * client.getTransactionCSVRows('0ef3a02d-ffdd-41f1-a074-7a7eb1e8c332')
+ * // [ 'Publisher,Votes,Fraction,BTC,USD',
+ * //   'chronicle.com,2,0.04081632653061224,0.0000033221,0.20 USD',
+ * //   'waitbutwhy.com,3,0.061224489795918366,0.0000049832,0.31 USD',
+ * //   'archlinux.org,1,0.02040816326530612,0.0000016611,0.10 USD',
+ * //   /.../
+ * // ]
+ *
+ * @param {string[]=} viewingIds - OPTIONAL array/string with one or more viewingIds to filter transactions by (if empty, uses all tx)
+ **/
+Client.prototype.getTransactionCSVRows = function (viewingIds) {
+  return txUtil.getTransactionCSVRows(this.state.transactions, viewingIds)
 }
 
-Client.prototype._getTransactionCSVRows = function (viewingIds) {
-    let txContribData = this._publisherVoteData(viewingIds)
-    var publishers = underscore.keys(txContribData)
-
-    var currency = txContribData[publishers[0]].contribution.currency
-    var headerRow = ['Publisher','Votes','Fraction','BTC', currency].join(',')
-
-    var rows = [headerRow]
-
-    rows = rows.concat(publishers.map(function (pub) { 
-        var pubRow = txContribData[pub]
-        return [pub,
-                pubRow.votes,
-                pubRow.fraction,
-                pubRow.contribution.satoshis / Math.pow(10, 10), 
-                pubRow.contribution.fiat.toFixed(2) + ' ' + pubRow.contribution.currency
-               ].join(',') 
-    }))
-
-    return rows
+/**
+ * Generates a contribution breakdown by publisher in an array of CSV rows (for one/more/all transactions)
+ * @example
+ * client.getTransactionCSVText('0ef3a02d-ffdd-41f1-a074-7a7eb1e8c332')
+ * // 'Publisher,Votes,Fraction,BTC,USD\nchronicle.com,2,0.04081632653061224,0.0000033221,0.20 USD\nwaitbutwhy.com,3,0.061224489795918366,0.0000049832,0.31 USD\narchlinux.org,1,0.02040816326530612,0.0000016611,0.10 USD /.../'
+ *
+ * @param {string[]=} viewingIds - OPTIONAL array/string with one or more viewingIds to filter transactions by (if empty, uses all tx)
+ **/
+Client.prototype.getTransactionCSVText = function (viewingIds) {
+  return this.getTransactionCSVRows(viewingIds).join('\n')
 }
 
 Client.prototype.vote = function (publisher, viewingId) {
