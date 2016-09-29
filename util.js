@@ -94,7 +94,7 @@ let getTotalContribution = function getTotalContribution (transactions, viewingI
  * Gives a summary of votes/contributions by Publisher from an array of one or ore transactions
  * @example
  * txUtil.getPublisherVoteData(client.state.transactions)
- * // { 
+ * // {
  * //  'chronicle.com':
  * //     { votes: 2,
  * //       fraction: 0.04081632653061224,
@@ -113,8 +113,8 @@ let getTotalContribution = function getTotalContribution (transactions, viewingI
  * @param {Object[]} transactions - array of transactions
  * @param {string[]=} viewingIds - OPTIONAL array/string with one or more viewingIds to filter transactions by (if empty, uses all tx)
  **/
-let getPublisherVoteData = function getPublisherVoteData(transactions, viewingIds) {
-  var transactions = getTransactionsByViewingIds(transactions, viewingIds)
+let getPublisherVoteData = function getPublisherVoteData (transactions, viewingIds) {
+  transactions = getTransactionsByViewingIds(transactions, viewingIds)
 
   var publishersWithVotes = {}
   var totalVotes = 0
@@ -129,19 +129,18 @@ let getPublisherVoteData = function getPublisherVoteData(transactions, viewingId
 
     var publishersOnBallot = underscore.keys(ballots)
 
-    for (var j = publishersOnBallot.length -1; j >= 0; j--) {
-      var publisher = publishersOnBallot[j]
+    for (var j = publishersOnBallot.length - 1; j >= 0; j--) {
+      let publisher = publishersOnBallot[j]
 
-      var voteDataForPublisher = publishersWithVotes[publisher] || {}
+      let voteDataForPublisher = publishersWithVotes[publisher] || {}
 
-      var voteCount = ballots[publisher]
-      var publisherVotes = (voteDataForPublisher.votes || 0) + voteCount
+      let voteCount = ballots[publisher]
+      let publisherVotes = (voteDataForPublisher.votes || 0) + voteCount
       totalVotes += voteCount
 
       voteDataForPublisher.votes = publisherVotes
       publishersWithVotes[publisher] = voteDataForPublisher
     }
-
   }
 
   var totalContributionAmountSatoshis = null
@@ -156,11 +155,11 @@ let getPublisherVoteData = function getPublisherVoteData(transactions, viewingId
     currency = currency || (totalContribution.fiat && totalContribution.fiat.currency)
   }
 
-  for (var publisher in publishersWithVotes) {
-    var voteDataForPublisher = publishersWithVotes[publisher]
-    var fraction = voteDataForPublisher.fraction = voteDataForPublisher.votes / totalVotes
+  for (let publisher in publishersWithVotes) {
+    let voteDataForPublisher = publishersWithVotes[publisher]
+    let fraction = voteDataForPublisher.fraction = voteDataForPublisher.votes / totalVotes
 
-    var contribution = voteDataForPublisher.contribution || {}
+    let contribution = voteDataForPublisher.contribution || {}
     if (totalContributionAmountSatoshis) {
       contribution.satoshis = Math.round(totalContributionAmountSatoshis * fraction)
     }
@@ -193,29 +192,65 @@ let getPublisherVoteData = function getPublisherVoteData(transactions, viewingId
  *
  * @param {Object[]} transactions - array of transactions
  * @param {string[]=} viewingIds - OPTIONAL array/string with one or more viewingIds to filter transactions by (if empty, uses all tx)
+ * @param (boolean=) addTotalRow - OPTIONAL boolean indicating whether to add a TOTALS row (defaults false)
  **/
-let getTransactionCSVRows = function (transactions, viewingIds) {
+let getTransactionCSVRows = function (transactions, viewingIds, addTotalRow) {
   let txContribData = getPublisherVoteData(transactions, viewingIds)
-  var publishers = underscore.keys(txContribData)
+  var publishers = (underscore.keys(txContribData) || [])
+
+  // sort publishers alphabetically
+  // TODO: take locale argument and pass to localeCompare below
+  publishers = publishers.sort(function (a, b) {
+    return (a && typeof a === 'string' ? a : '').localeCompare(b && typeof b === 'string' ? b : '')
+  })
 
   var currency = txContribData[publishers[0]].contribution.currency
-  var headerRow = ['Publisher','Votes','Fraction','BTC', currency].join(',')
+  var headerRow = ['Publisher', 'Votes', 'Fraction', 'BTC', currency].join(',')
+
+  var totalsRow = {
+    label: 'TOTAL',
+    votes: 0,
+    fraction: 0,
+    btc: 0,
+    fiat: 0
+  }
 
   var rows = [headerRow]
 
-  rows = rows.concat(publishers.map(function (pub) { 
+  rows = rows.concat(publishers.map(function (pub) {
     var pubRow = txContribData[pub]
+
+    let rowBTC = pubRow.contribution.satoshis / Math.pow(10, 10)
+    totalsRow.votes += pubRow.votes
+    totalsRow.fraction += pubRow.fraction
+    totalsRow.btc += rowBTC
+
+    if (pubRow.contribution.currency === currency) {
+      totalsRow.fiat += parseFloat(pubRow.contribution.fiat || '0')
+    } else {
+      throw new Error('ledgerExportUtil#getTransactionCSVRows does not support mixed currency data (yet)!')
+    }
+
     return [pub,
             pubRow.votes,
             pubRow.fraction,
-            pubRow.contribution.satoshis / Math.pow(10, 10), 
+            rowBTC,
             pubRow.contribution.fiat.toFixed(2) + ' ' + pubRow.contribution.currency
-           ].join(',') 
+           ].join(',')
   }))
+
+  if (addTotalRow) {
+    rows.push([
+      totalsRow.label,
+      totalsRow.votes,
+      totalsRow.fraction,
+      totalsRow.btc,
+      totalsRow.fiat.toFixed(2) + ' ' + currency
+    ].join(','))
+  }
 
   return rows
 }
-
 
 /**
  * Generates a contribution breakdown by publisher in an array of CSV rows from an array of transactions
@@ -225,9 +260,10 @@ let getTransactionCSVRows = function (transactions, viewingIds) {
  *
  * @param {Object[]} transactions - array of transactions
  * @param {string[]=} viewingIds - OPTIONAL array/string with one or more viewingIds to filter transactions by (if empty, uses all tx)
+ * @param (boolean=) addTotalRow - OPTIONAL boolean indicating whether to add a TOTALS row (defaults false)
  **/
-let getTransactionCSVText = function (transactions, viewingIds) {
-  return getTransactionCSVRows(transactions).join('\n')
+let getTransactionCSVText = function (transactions, viewingIds, addTotalRow) {
+  return getTransactionCSVRows(transactions, viewingIds, addTotalRow).join('\n')
 }
 
 module.exports = {
