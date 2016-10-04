@@ -81,7 +81,6 @@ Client.prototype.sync = function (callback) {
     ballot = ballots[i]
     transaction = underscore.find(this.state.transactions, function (transaction) {
       return ((transaction.credential) &&
-              (!transaction.err) &&
               (ballot.viewingId === transaction.viewingId) &&
               ((!ballot.prepareBallot) || (!ballot.delayStamp) || (ballot.delayStamp <= now)))
     })
