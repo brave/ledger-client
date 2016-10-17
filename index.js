@@ -294,8 +294,11 @@ Client.prototype.vote = function (publisher, viewingId) {
   }
   if (i < 0) return
 
-  this.state.ballots.push({ viewingId: transaction.viewingId, surveyorId: transaction.surveyorIds[transaction.votes],
-                            publisher: publisher, offset: transaction.votes })
+  this.state.ballots.push({ viewingId: transaction.viewingId,
+                            surveyorId: transaction.surveyorIds[transaction.votes],
+                            publisher: publisher,
+                            offset: transaction.votes
+                          })
   transaction.votes++
 
   return this.state
@@ -461,7 +464,9 @@ Client.prototype._currentReconcile = function (callback) {
         transaction = { viewingId: viewingId,
                         surveyorId: surveyorInfo.surveyorId,
                         contribution: { fiat: { amount: amount, currency: currency },
-                                        rates: rates, satoshis: body.satoshis, fee: fee
+                                        rates: rates,
+                                        satoshis: body.satoshis,
+                                        fee: fee
                                       },
                         submissionStamp: body.paymentStamp,
                         submissionDate: self.options.verboseP ? new Date(body.paymentStamp) : undefined,
@@ -511,8 +516,12 @@ Client.prototype._registerViewing = function (viewingId, callback) {
 
         // NB: use of `underscore.extend` requires that the parameter be `self.state.transactions[i]`
         underscore.extend(self.state.transactions[i],
-                          { credential: JSON.stringify(credential), surveyorIds: body.surveyorIds,
-                            count: body.surveyorIds.length, satoshis: body.satoshis, votes: 0 })
+                          { credential: JSON.stringify(credential),
+                            surveyorIds: body.surveyorIds,
+                            count: body.surveyorIds.length,
+                            satoshis: body.satoshis,
+                            votes: 0
+                          })
         self._log('_registerViewing', { delayTime: msecs.minute })
         return callback(null, self.state, msecs.minute)
       }
