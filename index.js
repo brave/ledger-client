@@ -7,6 +7,7 @@ var ledgerPublisher = require('ledger-publisher')
 var random = require('random-lib')
 var underscore = require('underscore')
 var url = require('url')
+var util = require('util')
 var uuid = require('node-uuid')
 
 var Client = function (personaId, options, state) {
@@ -621,6 +622,29 @@ Client.prototype._updateRules = function (callback) {
 
       ledgerPublisher.rules = ruleset
     }
+
+    self._updatePublishers(callback)
+  })
+}
+
+Client.prototype._updatePublishers = function (callback) {
+  var path
+  var self = this
+
+  self.state.rulesStamp = underscore.now() + msecs.hour
+  if (self.options.verboseP) self.state.rulesDate = new Date(self.state.rulesStamp)
+
+  path = '/v1/publisher/identity/verified'
+  self.roundtrip({ path: path, method: 'GET' }, function (err, response, publishers) {
+    self._log('_updatePublishers', { method: 'GET', path: '/v1/publisher/verified', errP: !!err })
+    if (err) return callback(err)
+
+    if (!util.isArray(publishers)) {
+      self._log('_updatePublishers', { error: 'not an array' })
+      return callback(new Error('not an array'))
+    }
+
+    self.state.verifiedPublishers = publishers || []
 
     self.state.rulesStamp = underscore.now() + (self.options.debugP ? msecs.hour : msecs.day)
     if (self.options.verboseP) self.state.rulesDate = new Date(self.state.rulesStamp)
