@@ -15,6 +15,8 @@ var Client = function (personaId, options, state) {
 
   var self = this
 
+  var later = underscore.now() + (15 * msecs.minute)
+
   if (!personaId) personaId = uuid.v4().toLowerCase()
 
   self.options = underscore.defaults(underscore.clone(options || {}),
@@ -34,6 +36,11 @@ var Client = function (personaId, options, state) {
 
   self.state = underscore.defaults(state || {}, { personaId: personaId, options: self.options, ballots: [], transactions: [] })
   self.logging = []
+
+  if ((self.state.rulesStamp) && (self.state.rulesStamp > later)) {
+    self.state.rulesStamp = later
+    if (self.options.verboseP) self.state.rulesDate = new Date(self.state.rulesStamp)
+  }
 
   if (self.state.wallet) throw new Error('deprecated state (alpha) format')
 }
