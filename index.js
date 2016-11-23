@@ -8,7 +8,7 @@ var random = require('random-lib')
 var underscore = require('underscore')
 var url = require('url')
 var util = require('util')
-var uuid = require('node-uuid')
+var uuid = require('uuid')
 
 var Client = function (personaId, options, state) {
   if (!(this instanceof Client)) return new Client(personaId, options, state)

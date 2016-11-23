@@ -3,7 +3,7 @@
 var fs = require('fs')
 var path = require('path')
 var url = require('url')
-var uuid = require('node-uuid')
+var uuid = require('uuid')
 
 /*
  *
