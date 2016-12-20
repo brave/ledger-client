@@ -59,6 +59,12 @@ Client.prototype.sync = function (callback) {
 
   if (typeof callback !== 'function') throw new Error('sync missing callback parameter')
 
+  // the caller is responsible for checking that the reconcileStamp is too historic...
+  if (this.state.reconcileStamp > (now + (this.state.properties.days * msecs.day))) {
+    self._log('sync', { reconcileStamp: this.state.reconcileStamp })
+    return this.setTimeUntilReconcile(null, callback)
+  }
+
   if (!this.state.ruleset) {
     this.state.ruleset = ledgerPublisher.rules
 
@@ -183,7 +189,7 @@ Client.prototype.getWalletProperties = function (amount, currency, callback) {
 Client.prototype.setTimeUntilReconcile = function (timestamp, callback) {
   var now = underscore.now()
 
-  if ((!timestamp) || (timestamp < now)) timestamp = now + this._backOff(this.state.properties.days)
+  if ((!timestamp) || (timestamp < now)) timestamp = now + (this.state.properties.days * msecs.day)
   this.state.reconcileStamp = timestamp
   if (this.options.verboseP) this.state.reconcileDate = new Date(this.state.reconcileStamp)
 
@@ -402,7 +408,7 @@ Client.prototype._registerPersona = function (callback) {
                               }
       self.state.bootStamp = underscore.now()
       if (self.options.verboseP) self.state.bootDate = new Date(self.state.bootStamp)
-      self.state.reconcileStamp = self.state.bootStamp + self._backOff(self.state.properties.days)
+      self.state.reconcileStamp = self.state.bootStamp + (self.state.properties.days * msecs.day)
       if (self.options.verboseP) self.state.reconcileDate = new Date(self.state.reconcileStamp)
 
       self._log('_registerPersona', { delayTime: msecs.minute })
@@ -483,7 +489,7 @@ Client.prototype._currentReconcile = function (callback) {
         self.state.transactions.push(transaction)
         delete self.state.currentReconcile
 
-        self.state.reconcileStamp = underscore.now() + self._backOff(self.state.properties.days)
+        self.state.reconcileStamp = underscore.now() + (self.state.properties.days * msecs.day)
         if (self.options.verboseP) self.state.reconcileDate = new Date(self.state.reconcileStamp)
 
         self._updateRules(function (err) {
@@ -593,10 +599,6 @@ Client.prototype._commitBallot = function (ballot, transaction, callback) {
     self._log('_commitBallot', { delayTime: msecs.minute })
     callback(null, self.state, msecs.minute)
   })
-}
-
-Client.prototype._backOff = function (days) {
-  return (days * (this.options.debugP ? msecs.second : msecs.day))
 }
 
 Client.prototype._log = function (who, args) {
