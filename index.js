@@ -60,7 +60,8 @@ Client.prototype.sync = function (callback) {
   if (typeof callback !== 'function') throw new Error('sync missing callback parameter')
 
   // the caller is responsible for checking that the reconcileStamp is too historic...
-  if (this.state.reconcileStamp > (now + (this.state.properties.days * msecs.day))) {
+  if ((this.state.properties && this.state.properties.days) &&
+      (this.state.reconcileStamp > (now + (this.state.properties.days * msecs.day)))) {
     self._log('sync', { reconcileStamp: this.state.reconcileStamp })
     return this.setTimeUntilReconcile(null, callback)
   }
