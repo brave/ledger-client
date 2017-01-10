@@ -369,7 +369,9 @@ Client.prototype._registerPersona = function (callback) {
 
     path = '/v1/registrar/persona/' + credential.parameters.userId
     try {
-      payload = { keychains: { user: underscore.omit(keychains.user, [ 'xprv' ]) }, proof: credential.request() }
+      payload = { keychains: { user: underscore.pick(keychains.user, [ 'xpub', 'path', 'encryptedXprv' ]) },
+                  proof: credential.request()
+                }
     } catch (ex) { return callback(ex) }
     self.roundtrip({ path: path, method: 'POST', payload: payload }, function (err, response, body) {
       var configuration, currency, days, fee
