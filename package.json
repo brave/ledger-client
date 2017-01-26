@@ -1,6 +1,6 @@
 {
   "name": "ledger-client",
-  "version": "0.8.111",
+  "version": "0.8.112",
   "description": "An example of client code for the Brave ledger.",
   "main": "index.js",
   "scripts": {
@@ -23,7 +23,7 @@
   "dependencies": {
     "bitgo": "^2.1.5",
     "joi": "^9.0.0-2",
-    "ledger-publisher": "^0.8.111",
+    "ledger-publisher": "^0.8.112",
     "node-anonize2-relic-emscripten": "https://github.com/brave/node-anonize2-relic-emscripten.git",
     "random-lib": "2.1.0",
     "underscore": "1.8.3",
