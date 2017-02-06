@@ -54,20 +54,20 @@ var msecs = { day: 24 * 60 * 60 * 1000,
 Client.prototype.sync = function (callback) {
   var self = this
 
-  var ballot, ballots, i, transaction
+  var ballot, ballots, i, transaction, updateP
   var now = underscore.now()
 
   if (typeof callback !== 'function') throw new Error('sync missing callback parameter')
 
   // the caller is responsible for checking that the reconcileStamp is too historic...
-  if ((this.state.properties && this.state.properties.days) &&
-      (this.state.reconcileStamp > (now + (this.state.properties.days * msecs.day)))) {
-    self._log('sync', { reconcileStamp: this.state.reconcileStamp })
-    return this.setTimeUntilReconcile(null, callback)
+  if ((self.state.properties && self.state.properties.days) &&
+      (self.state.reconcileStamp > (now + (self.state.properties.days * msecs.day)))) {
+    self._log('sync', { reconcileStamp: self.state.reconcileStamp })
+    return self.setTimeUntilReconcile(null, callback)
   }
 
-  if (!this.state.ruleset) {
-    this.state.ruleset = ledgerPublisher.rules
+  if (!self.state.ruleset) {
+    self.state.ruleset = ledgerPublisher.rules
 
     ledgerPublisher.getRules(function (err, rules) {
       if (err) self._log('getRules', { message: err.toString() })
@@ -77,8 +77,8 @@ Client.prototype.sync = function (callback) {
     })
   }
 
-  if (this.state.rulesStamp < now) {
-    return this._updateRules(function (err) {
+  if (self.state.rulesStamp < now) {
+    return self._updateRules(function (err) {
       if (err) self._log('_updateRules', { message: err.toString() })
 
       self._log('sync', { delayTime: msecs.minute })
@@ -86,36 +86,48 @@ Client.prototype.sync = function (callback) {
     })
   }
 
-  if (!this.credentials) this.credentials = {}
+  if (!self.credentials) self.credentials = {}
 
-  if (!this.state.persona) return this._registerPersona(callback)
-  this.credentials.persona = new anonize.Credential(this.state.persona)
+  if (!self.state.persona) return self._registerPersona(callback)
+  self.credentials.persona = new anonize.Credential(self.state.persona)
 
-  ballots = underscore.shuffle(this.state.ballots)
+  ballots = underscore.shuffle(self.state.ballots)
   for (i = ballots.length - 1; i >= 0; i--) {
     ballot = ballots[i]
-    transaction = underscore.find(this.state.transactions, function (transaction) {
+    transaction = underscore.find(self.state.transactions, function (transaction) {
       return ((transaction.credential) &&
               (ballot.viewingId === transaction.viewingId) &&
               ((!ballot.prepareBallot) || (!ballot.delayStamp) || (ballot.delayStamp <= now)))
     })
     if (!transaction) continue
 
-    if (!ballot.prepareBallot) return this._prepareBallot(ballot, transaction, callback)
-    return this._commitBallot(ballot, transaction, callback)
+    if (!ballot.prepareBallot) return self._prepareBallot(ballot, transaction, callback)
+    return self._commitBallot(ballot, transaction, callback)
   }
 
-  transaction = underscore.find(this.state.transactions, function (transaction) {
-    if (transaction.credential) return
+  transaction = underscore.find(self.state.transactions, function (transaction) {
+    if ((transaction.credential) || (transaction.ballots)) return
 
-    try { return this._registerViewing(transaction.viewingId, callback) } catch (ex) {
-      this._log('_registerViewing', { errP: 1, message: ex.toString(), stack: ex.stack })
+    try { return self._registerViewing(transaction.viewingId, callback) } catch (ex) {
+      self._log('_registerViewing', { errP: 1, message: ex.toString(), stack: ex.stack })
     }
-  }, this)
+  })
 
-  if (this.state.currentReconcile) return this._currentReconcile(callback)
+  if (self.state.currentReconcile) return self._currentReconcile(callback)
 
-  this._log('sync', { result: true })
+  for (i = self.state.transactions.length - 1; i > 0; i--) {
+    transaction = self.state.transactions[i]
+    if ((transaction.count === transaction.votes) && (!!transaction.credential)) {
+      self.state.transactions[i] = underscore.omit(transaction, [ 'credential', 'surveyorIds', 'err' ])
+      updateP = true
+    }
+  }
+  if (updateP) {
+    self._log('sync', { delayTime: msecs.minute })
+    return callback(null, self.state, msecs.minute)
+  }
+
+  self._log('sync', { result: true })
   return true
 }
 
