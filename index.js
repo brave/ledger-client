@@ -67,14 +67,8 @@ Client.prototype.sync = function (callback) {
   }
 
   if (!self.state.ruleset) {
-    self.state.ruleset = ledgerPublisher.rules
-
-    ledgerPublisher.getRules(function (err, rules) {
-      if (err) self._log('getRules', { message: err.toString() })
-      if (rules) self.state.ruleset = rules
-
-      self._updateRules(function (err) { if (err) self._log('updateRules', { message: err.toString() }) })
-    })
+    self.state.ruleset = []
+    ledgerPublisher.ruleset.forEach(function (rule) { if (rule.consequent) self.state.ruleset.push(rule) })
   }
 
   if (self.state.rulesStamp < now) {
@@ -628,7 +622,7 @@ Client.prototype._updateRules = function (callback) {
   self.state.rulesStamp = underscore.now() + msecs.hour
   if (self.options.verboseP) self.state.rulesDate = new Date(self.state.rulesStamp)
 
-  path = '/v1/publisher/ruleset'
+  path = '/v1/publisher/ruleset?consequential=true'
   self.roundtrip({ path: path, method: 'GET' }, function (err, response, ruleset) {
     var validity
 
@@ -647,7 +641,48 @@ Client.prototype._updateRules = function (callback) {
       ledgerPublisher.rules = ruleset
     }
 
-    self._updatePublishers(callback)
+    self._updateRulesV2(callback)
+  })
+}
+
+Client.prototype._updateRulesV2 = function (callback) {
+  var path
+  var self = this
+
+  self.state.rulesStamp = underscore.now() + msecs.hour
+  if (self.options.verboseP) self.state.rulesDate = new Date(self.state.rulesStamp)
+
+  path = '/v2/publisher/ruleset?limit=512'
+  if (self.state.rulesV2Stamp) path += '&timestamp=' + self.state.rulesV2Stamp
+  self.roundtrip({ path: path, method: 'GET' }, function (err, response, ruleset) {
+    var c, i, rule, ts
+
+    self._log('_updateRules', { method: 'GET', path: '/v1/publisher/ruleset', errP: !!err })
+    if (err) return callback(err)
+
+    if (ruleset.length === 0) return self._updatePublishers(callback)
+
+    if (!self.state.rulesetV2) self.state.rulesetV2 = []
+    self.state.rulesetV2 = self.state.rulesetV2.concat(ruleset)
+    rule = underscore.last(ruleset)
+
+    if (ruleset.length < 512) {
+      ts = rule.timestamp.split('')
+      for (i = ts.length - 1; i >= 0; i--) {
+        c = ts[i]
+        if (c < '9') {
+          ts[i] = String.fromCharCode(ts[i].charCodeAt(0) + 1)
+          break
+        }
+        ts[i] = '0'
+      }
+
+      self.state.rulesV2Stamp = ts.join('')
+    } else {
+      self.state.rulesV2Stamp = rule.timestamp
+    }
+
+    setTimeout(function () { self._updateRulesV2.bind(self)(callback) }, 3 * msecs.second)
   })
 }
 
