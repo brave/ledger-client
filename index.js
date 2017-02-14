@@ -7,7 +7,6 @@ var ledgerPublisher = require('ledger-publisher')
 var random = require('random-lib')
 var underscore = require('underscore')
 var url = require('url')
-var util = require('util')
 var uuid = require('uuid')
 
 var Client = function (personaId, options, state) {
@@ -37,9 +36,9 @@ var Client = function (personaId, options, state) {
   self.state = underscore.defaults(state || {}, { personaId: personaId, options: self.options, ballots: [], transactions: [] })
   self.logging = []
 
-  if ((self.state.rulesStamp) && (self.state.rulesStamp > later)) {
-    self.state.rulesStamp = later
-    if (self.options.verboseP) self.state.rulesDate = new Date(self.state.rulesStamp)
+  if ((self.state.updatesStamp) && (self.state.updatesStamp > later)) {
+    self.state.updatesStamp = later
+    if (self.options.verboseP) self.state.updatesDate = new Date(self.state.updatesStamp)
   }
 
   if (self.state.wallet) throw new Error('deprecated state (alpha) format')
@@ -66,12 +65,26 @@ Client.prototype.sync = function (callback) {
     return self.setTimeUntilReconcile(null, callback)
   }
 
+  if (self.state.ruleset) {
+    self.state.ruleset.forEach(function (rule) {
+      if (rule.consequent) return
+
+      self.state.updatesStamp = now - 1
+      if (self.options.verboseP) self.state.updatesDate = new Date(self.state.updatesStamp)
+    })
+    delete self.state.ruleset
+  }
   if (!self.state.ruleset) {
     self.state.ruleset = []
     ledgerPublisher.ruleset.forEach(function (rule) { if (rule.consequent) self.state.ruleset.push(rule) })
   }
+  if (self.state.verifiedPublishers) {
+    delete self.state.verifiedPublishers
+    self.state.updatesStamp = now - 1
+    if (self.options.verboseP) self.state.updatesDate = new Date(self.state.updatesStamp)
+  }
 
-  if (self.state.rulesStamp < now) {
+  if (self.state.updatesStamp < now) {
     return self._updateRules(function (err) {
       if (err) self._log('_updateRules', { message: err.toString() })
 
@@ -619,8 +632,8 @@ Client.prototype._updateRules = function (callback) {
   var path
   var self = this
 
-  self.state.rulesStamp = underscore.now() + msecs.hour
-  if (self.options.verboseP) self.state.rulesDate = new Date(self.state.rulesStamp)
+  self.state.updatesStamp = underscore.now() + msecs.hour
+  if (self.options.verboseP) self.state.updatesDate = new Date(self.state.updatesStamp)
 
   path = '/v1/publisher/ruleset?consequential=true'
   self.roundtrip({ path: path, method: 'GET' }, function (err, response, ruleset) {
@@ -649,18 +662,18 @@ Client.prototype._updateRulesV2 = function (callback) {
   var path
   var self = this
 
-  self.state.rulesStamp = underscore.now() + msecs.hour
-  if (self.options.verboseP) self.state.rulesDate = new Date(self.state.rulesStamp)
+  self.state.updatesStamp = underscore.now() + msecs.hour
+  if (self.options.verboseP) self.state.updatesDate = new Date(self.state.updatesStamp)
 
   path = '/v2/publisher/ruleset?limit=512'
   if (self.state.rulesV2Stamp) path += '&timestamp=' + self.state.rulesV2Stamp
   self.roundtrip({ path: path, method: 'GET' }, function (err, response, ruleset) {
     var c, i, rule, ts
 
-    self._log('_updateRules', { method: 'GET', path: '/v1/publisher/ruleset', errP: !!err })
+    self._log('_updateRules', { method: 'GET', path: '/v2/publisher/ruleset', errP: !!err })
     if (err) return callback(err)
 
-    if (ruleset.length === 0) return self._updatePublishers(callback)
+    if (ruleset.length === 0) return self._updatePublishersV2(callback)
 
     if (!self.state.rulesetV2) self.state.rulesetV2 = []
     self.state.rulesetV2 = self.state.rulesetV2.concat(ruleset)
@@ -686,28 +699,49 @@ Client.prototype._updateRulesV2 = function (callback) {
   })
 }
 
-Client.prototype._updatePublishers = function (callback) {
+Client.prototype._updatePublishersV2 = function (callback) {
   var path
   var self = this
 
-  self.state.rulesStamp = underscore.now() + msecs.hour
-  if (self.options.verboseP) self.state.rulesDate = new Date(self.state.rulesStamp)
+  self.state.updatesStamp = underscore.now() + msecs.hour
+  if (self.options.verboseP) self.state.updatesDate = new Date(self.state.updatesStamp)
 
-  path = '/v1/publisher/identity/verified'
+  path = '/v2/publisher/identity/verified?limit=512'
+  if (self.state.publishersV2Stamp) path += '&timestamp=' + self.state.publishersV2Stamp
   self.roundtrip({ path: path, method: 'GET' }, function (err, response, publishers) {
-    self._log('_updatePublishers', { method: 'GET', path: '/v1/publisher/verified', errP: !!err })
+    var c, i, publisher, ts
+
+    self._log('_updatePublishersV2', { method: 'GET', path: '/v2/publisher/identity/verified', errP: !!err })
     if (err) return callback(err)
 
-    if (!util.isArray(publishers)) {
-      self._log('_updatePublishers', { error: 'not an array' })
-      return callback(new Error('not an array'))
+    if (publishers.length === 0) {
+      self.state.updatesStamp = underscore.now() + (self.options.debugP ? msecs.hour : msecs.day)
+      if (self.options.verboseP) self.state.updatesDate = new Date(self.state.updatesStamp)
+
+      return callback()
     }
 
-    self.state.verifiedPublishers = publishers || []
+    if (!self.state.publishersV2) self.state.publishersV2 = []
+    self.state.publishersV2 = self.state.publishersV2.concat(publishers)
+    publisher = underscore.last(publishers)
 
-    self.state.rulesStamp = underscore.now() + (self.options.debugP ? msecs.hour : msecs.day)
-    if (self.options.verboseP) self.state.rulesDate = new Date(self.state.rulesStamp)
-    callback()
+    if (publishers.length < 512) {
+      ts = publisher.timestamp.split('')
+      for (i = ts.length - 1; i >= 0; i--) {
+        c = ts[i]
+        if (c < '9') {
+          ts[i] = String.fromCharCode(ts[i].charCodeAt(0) + 1)
+          break
+        }
+        ts[i] = '0'
+      }
+
+      self.state.publishersV2Stamp = ts.join('')
+    } else {
+      self.state.publishersV2Stamp = publisher.timestamp
+    }
+
+    setTimeout(function () { self._updatePublishersV2.bind(self)(callback) }, 3 * msecs.second)
   })
 }
 
