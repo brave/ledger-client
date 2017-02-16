@@ -348,16 +348,29 @@ Client.prototype.report = function () {
 Client.prototype.recoverWallet = function (recoveryId, passPhrase, callback) {
   var self = this
 
-  var path, payload
+  var path
 
-  path = '/v1/wallet/' + self.state.properties.wallet.paymentId + '/recover'
-  payload = { recoveryId: recoveryId, passPhrase: passPhrase }
-  self.roundtrip({ path: path, method: 'PUT', payload: payload }, function (err, response, body) {
-    self._log('recoverWallet', { method: 'PUT', path: '/v1/wallet/.../recover', errP: !!err })
+  path = '/v2/wallet/' + recoveryId + '/recover'
+  self.roundtrip({ path: path, method: 'GET' }, function (err, response, body) {
+    self._log('recoverWallet', { method: 'GET', path: '/v2/wallet/.../recover', errP: !!err })
     if (err) return callback(err)
 
     self._log('recoverWallet', body)
-    callback(null, body)
+
+    if ((!body.address) || (!body.keychains) || (!body.keychains.user) || (!body.keychains.user.xpub) ||
+        (!body.keychains.user.encryptedXprv) || (!body.keychains.user.path)) return callback(new Error('invalid response'))
+
+    try {
+      underscore.extend(body.keychains.user,
+                        { xprv: bitgo.decrypt({ password: passPhrase, input: body.keychains.user.encryptedXprv }),
+                          passphrase: passPhrase })
+    } catch (ex) {
+      return callback(new Error('invalid passphrase'))
+    }
+
+    self.state.properties.wallet = underscore.defaults({ paymentId: recoveryId }, underscore.omit(body, [ 'satoshis' ]))
+
+    callback(null, self.state, body.satoshis)
   })
 }
 
