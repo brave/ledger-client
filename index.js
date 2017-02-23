@@ -4,6 +4,7 @@ var http = require('http')
 var https = require('https')
 var Joi = require('joi')
 var ledgerPublisher = require('ledger-publisher')
+var path = require('path')
 var random = require('random-lib')
 var underscore = require('underscore')
 var url = require('url')
@@ -388,67 +389,76 @@ Client.prototype._registerPersona = function (callback) {
 
   path = '/v1/registrar/persona'
   self.roundtrip({ path: path, method: 'GET' }, function (err, response, body) {
-    var credential, keychains, passphrase, payload
+    var credential
 
     self._log('_registerPersona', { method: 'GET', path: path, errP: !!err })
     if (err) return callback(err)
 
     credential = new anonize.Credential(self.state.personaId, body.registrarVK)
 
-    passphrase = self.options.debugP ? 'hello world.' : uuid.v4().toLowerCase()
-    keychains = { user: bitgo.keychains().create(), passphrase: passphrase }
-    keychains.user.encryptedXprv = bitgo.encrypt({ password: keychains.passphrase, input: keychains.user.xprv })
-    keychains.user.path = 'm'
+    self.credentialRequest(credential, function (err, result) {
+      var keychains, passphrase, payload
 
-    path = '/v1/registrar/persona/' + credential.parameters.userId
-    try {
-      payload = { keychains: { user: underscore.pick(keychains.user, [ 'xpub', 'path', 'encryptedXprv' ]) },
-                  proof: credential.request()
-                }
-    } catch (ex) { return callback(ex) }
-    self.roundtrip({ path: path, method: 'POST', payload: payload }, function (err, response, body) {
-      var configuration, currency, days, fee
-
-      self._log('_registerPersona', { method: 'POST', path: '/v1/registrar/persona/...', errP: !!err })
       if (err) return callback(err)
 
-      try { credential.finalize(body.verification) } catch (ex) { return callback(ex) }
-      self.credentials.persona = credential
-      self.state.persona = JSON.stringify(credential)
+      if (result.credential) credential = new anonize.Credential(result.credential)
 
-      configuration = body.payload && body.payload.adFree
-      if (!configuration) {
-        self._log('_registerPersona', { error: 'persona registration missing adFree configuration' })
-        return callback(new Error('persona registration missing adFree configuration'))
-      }
+      passphrase = self.options.debugP ? 'hello world.' : uuid.v4().toLowerCase()
+      keychains = { user: bitgo.keychains().create(), passphrase: passphrase }
+      keychains.user.encryptedXprv = bitgo.encrypt({ password: keychains.passphrase, input: keychains.user.xprv })
+      keychains.user.path = 'm'
+      payload = { keychains: { user: underscore.pick(keychains.user, [ 'xpub', 'path', 'encryptedXprv' ]) },
+                  proof: result.proof
+                }
 
-      currency = configuration.currency || 'USD'
-      days = configuration.days || 30
-      if (!configuration.fee[currency]) {
-        if (currency === 'USD') {
-          self._log('_registerPersona', { error: 'USD is not supported by the ledger' })
-          return callback(new Error('USD is not supported by the ledger'))
-        }
-        if (!configuration.fee.USD) {
-          self._log('_registerPersona', { error: 'neither ' + currency + ' nor USD are supported by the ledger' })
-          return callback(new Error('neither ' + currency + ' nor USD are supported by the ledger'))
-        }
-        currency = 'USD'
-      }
-      fee = { currency: currency, amount: configuration.fee[currency] }
-      self.state.properties = { setting: 'adFree',
-                                fee: fee,
-                                days: days,
-                                configuration: body.contributions,
-                                wallet: underscore.extend(body.wallet, { keychains: keychains })
-                              }
-      self.state.bootStamp = underscore.now()
-      if (self.options.verboseP) self.state.bootDate = new Date(self.state.bootStamp)
-      self.state.reconcileStamp = self.state.bootStamp + (self.state.properties.days * msecs.day)
-      if (self.options.verboseP) self.state.reconcileDate = new Date(self.state.reconcileStamp)
+      path = '/v1/registrar/persona/' + credential.parameters.userId
+      self.roundtrip({ path: path, method: 'POST', payload: payload }, function (err, response, body) {
+        var configuration, currency, days, fee
 
-      self._log('_registerPersona', { delayTime: msecs.minute })
-      callback(null, self.state, msecs.minute)
+        self._log('_registerPersona', { method: 'POST', path: '/v1/registrar/persona/...', errP: !!err })
+        if (err) return callback(err)
+
+        self.credentialFinalize(credential, body.verification, function (err, result) {
+          if (err) return callback(err)
+
+          self.credentials.persona = new anonize.Credential(result.credential)
+          self.state.persona = result.credential
+
+          configuration = body.payload && body.payload.adFree
+          if (!configuration) {
+            self._log('_registerPersona', { error: 'persona registration missing adFree configuration' })
+            return callback(new Error('persona registration missing adFree configuration'))
+          }
+
+          currency = configuration.currency || 'USD'
+          days = configuration.days || 30
+          if (!configuration.fee[currency]) {
+            if (currency === 'USD') {
+              self._log('_registerPersona', { error: 'USD is not supported by the ledger' })
+              return callback(new Error('USD is not supported by the ledger'))
+            }
+            if (!configuration.fee.USD) {
+              self._log('_registerPersona', { error: 'neither ' + currency + ' nor USD are supported by the ledger' })
+              return callback(new Error('neither ' + currency + ' nor USD are supported by the ledger'))
+            }
+            currency = 'USD'
+          }
+          fee = { currency: currency, amount: configuration.fee[currency] }
+          self.state.properties = { setting: 'adFree',
+                                    fee: fee,
+                                    days: days,
+                                    configuration: body.contributions,
+                                    wallet: underscore.extend(body.wallet, { keychains: keychains })
+                                  }
+          self.state.bootStamp = underscore.now()
+          if (self.options.verboseP) self.state.bootDate = new Date(self.state.bootStamp)
+          self.state.reconcileStamp = self.state.bootStamp + (self.state.properties.days * msecs.day)
+          if (self.options.verboseP) self.state.reconcileDate = new Date(self.state.reconcileStamp)
+
+          self._log('_registerPersona', { delayTime: msecs.minute })
+          callback(null, self.state, msecs.minute)
+        })
+      })
     })
   })
 }
@@ -544,39 +554,46 @@ Client.prototype._registerViewing = function (viewingId, callback) {
 
   var path = '/v1/registrar/viewing'
   self.roundtrip({ path: path, method: 'GET' }, function (err, response, body) {
-    var credential, payload
+    var credential
 
     self._log('_registerViewing', { method: 'GET', path: path, errP: !!err })
     if (err) return callback(err)
 
     credential = new anonize.Credential(viewingId, body.registrarVK)
 
-    path = '/v1/registrar/viewing/' + credential.parameters.userId
-    try { payload = { proof: credential.request() } } catch (ex) { return callback(ex) }
-    self.roundtrip({ path: path, method: 'POST', payload: payload }, function (err, response, body) {
-      var i
-
-      self._log('_registerViewing', { method: 'POST', path: '/v1/registrar/viewing/...', errP: !!err })
+    self.credentialRequest(credential, function (err, result) {
       if (err) return callback(err)
 
-      try { credential.finalize(body.verification) } catch (ex) { return callback(ex) }
+      if (result.credential) credential = new anonize.Credential(result.credential)
 
-      for (i = self.state.transactions.length - 1; i >= 0; i--) {
-        if (self.state.transactions[i].viewingId !== viewingId) continue
+      path = '/v1/registrar/viewing/' + credential.parameters.userId
+      self.roundtrip({ path: path, method: 'POST', payload: { proof: result.proof } }, function (err, response, body) {
+        var i
 
-        // NB: use of `underscore.extend` requires that the parameter be `self.state.transactions[i]`
-        underscore.extend(self.state.transactions[i],
-                          { credential: JSON.stringify(credential),
-                            surveyorIds: body.surveyorIds,
-                            count: body.surveyorIds.length,
-                            satoshis: body.satoshis,
-                            votes: 0
-                          })
-        self._log('_registerViewing', { delayTime: msecs.minute })
-        return callback(null, self.state, msecs.minute)
-      }
+        self._log('_registerViewing', { method: 'POST', path: '/v1/registrar/viewing/...', errP: !!err })
+        if (err) return callback(err)
 
-      callback(new Error('viewingId ' + viewingId + ' not found in transaction list'))
+        self.credentialFinalize(credential, body.verification, function (err, result) {
+          if (err) return callback(err)
+
+          for (i = self.state.transactions.length - 1; i >= 0; i--) {
+            if (self.state.transactions[i].viewingId !== viewingId) continue
+
+            // NB: use of `underscore.extend` requires that the parameter be `self.state.transactions[i]`
+            underscore.extend(self.state.transactions[i],
+                              { credential: result.credential,
+                                surveyorIds: body.surveyorIds,
+                                count: body.surveyorIds.length,
+                                satoshis: body.satoshis,
+                                votes: 0
+                              })
+            self._log('_registerViewing', { delayTime: msecs.minute })
+            return callback(null, self.state, msecs.minute)
+          }
+
+          callback(new Error('viewingId ' + viewingId + ' not found in transaction list'))
+        })
+      })
     })
   })
 }
@@ -609,31 +626,35 @@ Client.prototype._prepareBallot = function (ballot, transaction, callback) {
 Client.prototype._commitBallot = function (ballot, transaction, callback) {
   var self = this
 
-  var path, payload
+  var path
   var credential = new anonize.Credential(transaction.credential)
   var surveyor = new anonize.Surveyor(ballot.prepareBallot)
 
   path = '/v1/surveyor/voting/' + encodeURIComponent(surveyor.parameters.surveyorId)
-  try { payload = { proof: credential.submit(surveyor, { publisher: ballot.publisher }) } } catch (ex) { return callback(ex) }
-  self.roundtrip({ path: path, method: 'PUT', useProxy: true, payload: payload }, function (err, response, body) {
-    var i
 
-    self._log('_commitBallot', { method: 'PUT', path: '/v1/surveyor/voting/...', errP: !!err })
-    if (err) return callback(transaction.err = err)
+  self.credentialSubmit(credential, surveyor, { publisher: ballot.publisher }, function (err, result) {
+    if (err) return callback(err)
 
-    if (!transaction.ballots) transaction.ballots = {}
-    if (!transaction.ballots[ballot.publisher]) transaction.ballots[ballot.publisher] = 0
-    transaction.ballots[ballot.publisher]++
+    self.roundtrip({ path: path, method: 'PUT', useProxy: true, payload: result.payload }, function (err, response, body) {
+      var i
 
-    for (i = self.state.ballots.length - 1; i >= 0; i--) {
-      if (self.state.ballots[i] !== ballot) continue
+      self._log('_commitBallot', { method: 'PUT', path: '/v1/surveyor/voting/...', errP: !!err })
+      if (err) return callback(transaction.err = err)
 
-      self.state.ballots.splice(i, 1)
-      break
-    }
+      if (!transaction.ballots) transaction.ballots = {}
+      if (!transaction.ballots[ballot.publisher]) transaction.ballots[ballot.publisher] = 0
+      transaction.ballots[ballot.publisher]++
 
-    self._log('_commitBallot', { delayTime: msecs.minute })
-    callback(null, self.state, msecs.minute)
+      for (i = self.state.ballots.length - 1; i >= 0; i--) {
+        if (self.state.ballots[i] !== ballot) continue
+
+        self.state.ballots.splice(i, 1)
+        break
+      }
+
+      self._log('_commitBallot', { delayTime: msecs.minute })
+      callback(null, self.state, msecs.minute)
+    })
   })
 }
 
@@ -764,7 +785,8 @@ Client.prototype._roundTrip = function (params, callback) {
   var self = this
 
   var request, timeoutP
-  var client = self.options.server.protocol === 'https:' ? https : http
+  var server = self.options.server
+  var client = server.protocol === 'https:' ? https : http
 
   params = underscore.extend(underscore.pick(self.options.server, [ 'protocol', 'hostname', 'port' ]), params)
   params.headers = underscore.defaults(params.headers || {},
@@ -782,8 +804,7 @@ Client.prototype._roundTrip = function (params, callback) {
       if (params.timeout) request.setTimeout(0)
 
       if (self.options.verboseP) {
-        console.log('[ response for ' + params.method + ' ' + self.options.server.protocol + '//' +
-                    self.options.server.hostname + params.path + ' ]')
+        console.log('[ response for ' + params.method + ' ' + server.protocol + '//' + server.hostname + params.path + ' ]')
         console.log('>>> HTTP/' + response.httpVersionMajor + '.' + response.httpVersionMinor + ' ' + response.statusCode +
                    ' ' + (response.statusMessage || ''))
         underscore.keys(response.headers).forEach(function (header) {
@@ -824,6 +845,84 @@ Client.prototype._roundTrip = function (params, callback) {
   underscore.keys(params.headers).forEach(function (header) { console.log('<<< ' + header + ': ' + params.headers[header]) })
   console.log('<<<')
   if (params.payload) console.log('<<< ' + JSON.stringify(params.payload, null, 2).split('\n').join('\n<<< '))
+}
+
+/*
+ *
+ * anonize2 helper
+ *
+ * it would be nice to use webworker-threads to do this work; however, that would require that anonize be shoe-horned into
+ * the worker threads. even if we could do a require in a thread (it's not supported), the anonize2 module uses emscripten...
+ *
+ */
+
+var callbacks = {}
+
+var helper = require('child_process').fork(path.join(__dirname, 'helper.js')).on('message', function (response) {
+  var state = callbacks[response.msgno]
+
+  if (!state) return console.log('! >>> not expecting msgno=' + response.msgno)
+
+  delete callbacks[response.msgno]
+  if (state.verboseP) console.log('! >>> ' + JSON.stringify(response, null, 2))
+  state.callback(response.err, response.result)
+}).on('close', function (code, signal) {
+  helper = null
+  console.log('! >>> close ' + JSON.stringify({ code: code, signal: signal }))
+}).on('disconnect', function () {
+  helper = null
+  console.log('! >>> disconnect')
+}).on('error', function (err) {
+  helper = null
+  console.log('! >>> error ' + err.toString())
+}).on('exit', function (code, signal) {
+  helper = null
+  console.log('! >>> exit ' + JSON.stringify({ code: code, signal: signal }))
+})
+
+var seqno = 0
+
+Client.prototype.credentialRoundTrip = function (operation, payload, callback) {
+  var msgno = seqno++
+  var request = { msgno: msgno, operation: operation, payload: payload }
+
+  callbacks[msgno] = { verboseP: this.options.verboseP, callback: callback }
+
+  helper.send(request)
+  if (this.options.verboseP) console.log('! <<< ' + JSON.stringify(request, null, 2))
+}
+
+Client.prototype.credentialRequest = function (credential, callback) {
+  var proof
+
+  if (!helper) {
+    try { proof = credential.request() } catch (ex) { return callback(ex) }
+    return callback(null, { proof: proof })
+  }
+
+  this.credentialRoundTrip('request', { credential: JSON.stringify(credential) }, callback)
+}
+
+Client.prototype.credentialFinalize = function (credential, verification, callback) {
+  if (!helper) {
+    try { credential.finalize(verification) } catch (ex) { return callback(ex) }
+    return callback(null, { credential: JSON.stringify(credential) })
+  }
+
+  this.credentialRoundTrip('finalize', { credential: JSON.stringify(credential), verification: verification }, callback)
+}
+
+Client.prototype.credentialSubmit = function (credential, surveyor, data, callback) {
+  var payload
+
+  if (!helper) {
+    try { payload = { proof: credential.submit(surveyor, data) } } catch (ex) { return callback(ex) }
+    return callback(null, { payload: payload })
+  }
+
+  this.credentialRoundTrip('submit',
+                            { credential: JSON.stringify(credential), surveyor: JSON.stringify(surveyor), data: data },
+                            callback)
 }
 
 /*
