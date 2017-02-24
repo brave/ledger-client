@@ -895,6 +895,16 @@ Client.prototype.credentialRoundTrip = function (operation, payload, callback) {
 Client.prototype.credentialRequest = function (credential, callback) {
   var proof
 
+  if (this.options.executeScriptInBackground) {
+    var script = '(' + Function.prototype.toString.call(credential.request) + ')()'
+
+    return this.executeScriptInBackground(script, function (err, url, result) {
+      if (err) return callback(err)
+
+      callback(null, { proof: result[0] })
+    })
+  }
+
   if (!helper) {
     try { proof = credential.request() } catch (ex) { return callback(ex) }
     return callback(null, { proof: proof })
@@ -904,6 +914,16 @@ Client.prototype.credentialRequest = function (credential, callback) {
 }
 
 Client.prototype.credentialFinalize = function (credential, verification, callback) {
+  if (this.options.executeScriptInBackground) {
+    var script = '(' + Function.prototype.toString.call(credential.finaize) + ')(' + JSON.stringify(verification) + ')'
+
+    return this.executeScriptInBackground(script, function (err, url, result) {
+      if (err) return callback(err)
+
+      callback(null, { credential: result[0] })
+    })
+  }
+
   if (!helper) {
     try { credential.finalize(verification) } catch (ex) { return callback(ex) }
     return callback(null, { credential: JSON.stringify(credential) })
@@ -914,6 +934,17 @@ Client.prototype.credentialFinalize = function (credential, verification, callba
 
 Client.prototype.credentialSubmit = function (credential, surveyor, data, callback) {
   var payload
+
+  if (this.options.executeScriptInBackground) {
+    var script = '(' + Function.prototype.toString.call(credential.submit) + ')(' + JSON.stringify(surveyor) + ',' +
+        JSON.stringify(data) + ')'
+
+    return this.executeScriptInBackground(script, function (err, url, result) {
+      if (err) return callback(err)
+
+      callback(null, { payload: result[0] })
+    })
+  }
 
   if (!helper) {
     try { payload = { proof: credential.submit(surveyor, data) } } catch (ex) { return callback(ex) }
