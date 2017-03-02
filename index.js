@@ -4,7 +4,6 @@ var http = require('http')
 var https = require('https')
 var Joi = require('joi')
 var ledgerPublisher = require('ledger-publisher')
-var path = require('path')
 var random = require('random-lib')
 var underscore = require('underscore')
 var url = require('url')
@@ -858,7 +857,8 @@ Client.prototype._roundTrip = function (params, callback) {
 
 var callbacks = {}
 
-var helper = require('child_process').fork(path.join(__dirname, 'helper.js')).on('message', function (response) {
+/*
+var helper = require('child_process').fork(require('path').join(__dirname, 'helper.js')).on('message', function (response) {
   var state = callbacks[response.msgno]
 
   if (!state) return console.log('! >>> not expecting msgno=' + response.msgno)
@@ -879,7 +879,8 @@ var helper = require('child_process').fork(path.join(__dirname, 'helper.js')).on
   helper = null
   console.log('! >>> exit ' + JSON.stringify({ code: code, signal: signal }))
 })
-
+*/
+var helper = null
 var seqno = 0
 
 Client.prototype.credentialRoundTrip = function (operation, payload, callback) {
