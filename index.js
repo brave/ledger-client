@@ -897,8 +897,9 @@ Client.prototype.credentialRequest = function (credential, callback) {
 
   if (this.options.executeScriptInBackground) {
     var script = '(' + Function.prototype.toString.call(credential.request) + ')()'
+    if (this.options.verboseP) console.log('! <<< credentialRequest:  ' + script)
 
-    return this.executeScriptInBackground(script, function (err, url, result) {
+    return this.options.executeScriptInBackground(script, function (err, url, result) {
       if (err) return callback(err)
 
       callback(null, { proof: result[0] })
@@ -915,9 +916,10 @@ Client.prototype.credentialRequest = function (credential, callback) {
 
 Client.prototype.credentialFinalize = function (credential, verification, callback) {
   if (this.options.executeScriptInBackground) {
-    var script = '(' + Function.prototype.toString.call(credential.finaize) + ')(' + JSON.stringify(verification) + ')'
+    var script = '(' + Function.prototype.toString.call(credential.finalize) + ')(' + JSON.stringify(verification) + ')'
+    if (this.options.verboseP) console.log('! <<< credentialFinalize: ' + script)
 
-    return this.executeScriptInBackground(script, function (err, url, result) {
+    return this.options.executeScriptInBackground(script, function (err, url, result) {
       if (err) return callback(err)
 
       callback(null, { credential: result[0] })
@@ -937,9 +939,10 @@ Client.prototype.credentialSubmit = function (credential, surveyor, data, callba
 
   if (this.options.executeScriptInBackground) {
     var script = '(' + Function.prototype.toString.call(credential.submit) + ')(' + JSON.stringify(surveyor) + ',' +
-        JSON.stringify(data) + ')'
+                 JSON.stringify(data) + ')'
+    if (this.options.verboseP) console.log('! <<< credentialSubmit:   ' + script)
 
-    return this.executeScriptInBackground(script, function (err, url, result) {
+    return this.options.executeScriptInBackground(script, function (err, url, result) {
       if (err) return callback(err)
 
       callback(null, { payload: result[0] })
