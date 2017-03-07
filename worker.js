@@ -1,3 +1,5 @@
+/* global self */
+
 var anonize = require('node-anonize2-relic-emscripten')
 
 self.onmessage = function (request) {
