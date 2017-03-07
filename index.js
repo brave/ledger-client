@@ -42,6 +42,10 @@ var Client = function (personaId, options, state) {
   }
 
   if (self.state.wallet) throw new Error('deprecated state (alpha) format')
+
+  this.seqno = 0
+  this.callbacks = {}
+  if (!self.options.startWorker) self.initializeHelper()
 }
 
 var msecs = { day: 24 * 60 * 60 * 1000,
@@ -847,117 +851,103 @@ Client.prototype._roundTrip = function (params, callback) {
 }
 
 /*
- *
  * anonize2 helper
- *
- * it would be nice to use webworker-threads to do this work; however, that would require that anonize be shoe-horned into
- * the worker threads. even if we could do a require in a thread (it's not supported), the anonize2 module uses emscripten...
- *
  */
 
-var callbacks = {}
+Client.prototype.initializeHelper = function () {
+  this.helper = require('child_process').fork(require('path').join(__dirname, 'helper.js')).on('message', function (response) {
+    var state = this.callbacks[response.msgno]
 
-/*
-var helper = require('child_process').fork(require('path').join(__dirname, 'helper.js')).on('message', function (response) {
-  var state = callbacks[response.msgno]
+    if (!state) return console.log('! >>> not expecting msgno=' + response.msgno)
 
-  if (!state) return console.log('! >>> not expecting msgno=' + response.msgno)
+    delete this.callbacks[response.msgno]
+    if (state.verboseP) console.log('! >>> ' + JSON.stringify(response, null, 2))
+    state.callback(response.err, response.result)
+  }).on('close', function (code, signal) {
+    this.helper = null
+    console.log('! >>> close ' + JSON.stringify({ code: code, signal: signal }))
+  }).on('disconnect', function () {
+    this.helper = null
+    console.log('! >>> disconnect')
+  }).on('error', function (err) {
+    this.helper = null
+    console.log('! >>> error ' + err.toString())
+  }).on('exit', function (code, signal) {
+    this.helper = null
+    console.log('! >>> exit ' + JSON.stringify({ code: code, signal: signal }))
+  })
+}
 
-  delete callbacks[response.msgno]
-  if (state.verboseP) console.log('! >>> ' + JSON.stringify(response, null, 2))
-  state.callback(response.err, response.result)
-}).on('close', function (code, signal) {
-  helper = null
-  console.log('! >>> close ' + JSON.stringify({ code: code, signal: signal }))
-}).on('disconnect', function () {
-  helper = null
-  console.log('! >>> disconnect')
-}).on('error', function (err) {
-  helper = null
-  console.log('! >>> error ' + err.toString())
-}).on('exit', function (code, signal) {
-  helper = null
-  console.log('! >>> exit ' + JSON.stringify({ code: code, signal: signal }))
-})
-*/
-var helper = null
-var seqno = 0
+Client.prototype.credentialWorker = function (operation, payload, callback) {
+  var self = this
 
-Client.prototype.credentialRoundTrip = function (operation, payload, callback) {
-  var msgno = seqno++
+  var msgno = self.seqno++
   var request = { msgno: msgno, operation: operation, payload: payload }
 
-  callbacks[msgno] = { verboseP: this.options.verboseP, callback: callback }
+  self.callbacks[msgno] = { verboseP: self.options.verboseP, callback: callback }
 
-  helper.send(request)
+// options.startWorker = app.startWorker
+  self.options.startWorker('ledger-client/worker.js').on('message', function (response) {
+    var state = self.callbacks[response.msgno]
+
+    if (!state) return console.log('! >>> not expecting msgno=' + response.msgno)
+
+    delete self.callbacks[response.msgno]
+    if (state.verboseP) console.log('! >>> ' + JSON.stringify(response, null, 2))
+    state.callback(response.err, response.result)
+    this.terminate()
+  }).on('error', function () {
+    try { this.terminate() } catch (ex) { }
+  }).postMessage(request)
+  if (self.options.verboseP) console.log('! <<< ' + JSON.stringify(request, null, 2))
+}
+
+Client.prototype.credentialRoundTrip = function (operation, payload, callback) {
+  var msgno = this.seqno++
+  var request = { msgno: msgno, operation: operation, payload: payload }
+
+  this.callbacks[msgno] = { verboseP: this.options.verboseP, callback: callback }
+  this.helper.send(request)
   if (this.options.verboseP) console.log('! <<< ' + JSON.stringify(request, null, 2))
 }
 
 Client.prototype.credentialRequest = function (credential, callback) {
   var proof
 
-  if (this.options.executeScriptInBackground) {
-    var script = '(' + Function.prototype.toString.call(credential.request) + ')()'
-    if (this.options.verboseP) console.log('! <<< credentialRequest:  ' + script)
+  if (this.options.startWorker) return this.credentialWorker('request', { credential: JSON.stringify(credential) }, callback)
 
-    return this.options.executeScriptInBackground(script, function (err, url, result) {
-      if (err) return callback(err)
+  if (this.helper) this.credentialRoundTrip('request', { credential: JSON.stringify(credential) }, callback)
 
-      callback(null, { proof: result[0] })
-    })
-  }
-
-  if (!helper) {
-    try { proof = credential.request() } catch (ex) { return callback(ex) }
-    return callback(null, { proof: proof })
-  }
-
-  this.credentialRoundTrip('request', { credential: JSON.stringify(credential) }, callback)
+  try { proof = credential.request() } catch (ex) { return callback(ex) }
+  callback(null, { proof: proof })
 }
 
 Client.prototype.credentialFinalize = function (credential, verification, callback) {
-  if (this.options.executeScriptInBackground) {
-    var script = '(' + Function.prototype.toString.call(credential.finalize) + ')(' + JSON.stringify(verification) + ')'
-    if (this.options.verboseP) console.log('! <<< credentialFinalize: ' + script)
+  if (this.options.startWorker) return this.credentialWorker('finalize', { credential: JSON.stringify(credential) }, callback)
 
-    return this.options.executeScriptInBackground(script, function (err, url, result) {
-      if (err) return callback(err)
+  if (this.helper) return this.credentialRoundTrip('finalize', { credential: JSON.stringify(credential) }, callback)
 
-      callback(null, { credential: result[0] })
-    })
-  }
-
-  if (!helper) {
-    try { credential.finalize(verification) } catch (ex) { return callback(ex) }
-    return callback(null, { credential: JSON.stringify(credential) })
-  }
-
-  this.credentialRoundTrip('finalize', { credential: JSON.stringify(credential), verification: verification }, callback)
+  try { credential.finalize(verification) } catch (ex) { return callback(ex) }
+  callback(null, { credential: JSON.stringify(credential) })
 }
 
 Client.prototype.credentialSubmit = function (credential, surveyor, data, callback) {
   var payload
 
-  if (this.options.executeScriptInBackground) {
-    var script = '(' + Function.prototype.toString.call(credential.submit) + ')(' + JSON.stringify(surveyor) + ',' +
-                 JSON.stringify(data) + ')'
-    if (this.options.verboseP) console.log('! <<< credentialSubmit:   ' + script)
-
-    return this.options.executeScriptInBackground(script, function (err, url, result) {
-      if (err) return callback(err)
-
-      callback(null, { payload: result[0] })
-    })
+  if (this.options.startWorker) {
+    return this.credentialWorker('submit',
+                                 { credential: JSON.stringify(credential), surveyor: JSON.stringify(surveyor), data: data },
+                                 callback)
   }
 
-  if (!helper) {
-    try { payload = { proof: credential.submit(surveyor, data) } } catch (ex) { return callback(ex) }
-    return callback(null, { payload: payload })
+  if (this.helper) {
+    return this.credentialRoundTrip('submit',
+                                    { credential: JSON.stringify(credential), surveyor: JSON.stringify(surveyor), data: data },
+                                    callback)
   }
 
-  this.credentialRoundTrip('submit',
-                            { credential: JSON.stringify(credential), surveyor: JSON.stringify(surveyor), data: data },
-                            callback)
+  try { payload = { proof: credential.submit(surveyor, data) } } catch (ex) { return callback(ex) }
+  return callback(null, { payload: payload })
 }
 
 /*
