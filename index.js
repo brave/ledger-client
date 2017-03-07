@@ -855,25 +855,27 @@ Client.prototype._roundTrip = function (params, callback) {
  */
 
 Client.prototype.initializeHelper = function () {
+  var self = this
+
   this.helper = require('child_process').fork(require('path').join(__dirname, 'helper.js')).on('message', function (response) {
-    var state = this.callbacks[response.msgno]
+    var state = self.callbacks[response.msgno]
 
     if (!state) return console.log('! >>> not expecting msgno=' + response.msgno)
 
-    delete this.callbacks[response.msgno]
+    delete self.callbacks[response.msgno]
     if (state.verboseP) console.log('! >>> ' + JSON.stringify(response, null, 2))
     state.callback(response.err, response.result)
   }).on('close', function (code, signal) {
-    this.helper = null
+    self.helper = null
     console.log('! >>> close ' + JSON.stringify({ code: code, signal: signal }))
   }).on('disconnect', function () {
-    this.helper = null
+    self.helper = null
     console.log('! >>> disconnect')
   }).on('error', function (err) {
-    this.helper = null
+    self.helper = null
     console.log('! >>> error ' + err.toString())
   }).on('exit', function (code, signal) {
-    this.helper = null
+    self.helper = null
     console.log('! >>> exit ' + JSON.stringify({ code: code, signal: signal }))
   })
 }
