@@ -1,6 +1,10 @@
-/* global self */
+/* jshint asi: true, node: true, laxbreak: true, laxcomma: true, undef: true, unused: true */
+/* global define, self */
 
-var anonize = require('node-anonize2-relic-emscripten')
+define([ 'console' ], function (console) {
+console.log('hello worker')
+var anonize = require('node-anonize2-relic-emscripten/index.js')
+console.log('anonize loaded')
 
 self.onmessage = function (request) {
   var d = function (err, result) {
@@ -40,3 +44,4 @@ self.onmessage = function (request) {
     d(ex.toString())
   }
 }
+})
