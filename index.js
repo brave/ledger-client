@@ -855,6 +855,7 @@ Client.prototype._roundTrip = function (params, callback) {
  */
 
 Client.prototype.initializeHelper = function () {
+/*
   var self = this
 
   this.helper = require('child_process').fork(require('path').join(__dirname, 'helper.js')).on('message', function (response) {
@@ -878,6 +879,7 @@ Client.prototype.initializeHelper = function () {
     self.helper = null
     console.log('! >>> exit ' + JSON.stringify({ code: code, signal: signal }))
   })
+ */
 }
 
 Client.prototype.credentialWorker = function (operation, payload, callback) {
