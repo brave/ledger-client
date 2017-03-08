@@ -885,13 +885,14 @@ Client.prototype.initializeHelper = function () {
 Client.prototype.credentialWorker = function (operation, payload, callback) {
   var self = this
 
+  var worker
   var msgno = self.seqno++
   var request = { msgno: msgno, operation: operation, payload: payload }
 
   self.callbacks[msgno] = { verboseP: self.options.verboseP, callback: callback }
 
-// options.startWorker = app.startWorker
-  self.options.startWorker('ledger-client/worker.js').on('message', function (response) {
+  worker = self.options.startWorker('ledger-client/worker.js')
+  worker.onmessage = function (response) {
     var state = self.callbacks[response.msgno]
 
     if (!state) return console.log('! >>> not expecting msgno=' + response.msgno)
@@ -900,9 +901,12 @@ Client.prototype.credentialWorker = function (operation, payload, callback) {
     if (state.verboseP) console.log('! >>> ' + JSON.stringify(response, null, 2))
     state.callback(response.err, response.result)
     this.terminate()
-  }).on('error', function () {
+  }
+  worker.onerror = function () {
+    console.log('! >>> worker error')
     try { this.terminate() } catch (ex) { }
-  }).postMessage(request)
+  }
+  worker.postMessage(request)
   if (self.options.verboseP) console.log('! <<< ' + JSON.stringify(request, null, 2))
 }
 
