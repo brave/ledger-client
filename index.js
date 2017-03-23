@@ -891,8 +891,9 @@ Client.prototype.credentialWorker = function (operation, payload, callback) {
 
   self.callbacks[msgno] = { verboseP: self.options.verboseP, callback: callback }
 
-  worker = self.options.startWorker('ledger-client/worker.js')
-  worker.onmessage = function (response) {
+  worker = self.options.createWorker('./worker.js')
+  worker.onmessage = function (evt) {
+    const response = evt.data
     var state = self.callbacks[response.msgno]
 
     if (!state) return console.log('! >>> not expecting msgno=' + response.msgno)
@@ -900,11 +901,11 @@ Client.prototype.credentialWorker = function (operation, payload, callback) {
     delete self.callbacks[response.msgno]
     if (state.verboseP) console.log('! >>> ' + JSON.stringify(response, null, 2))
     state.callback(response.err, response.result)
-    this.terminate()
+    worker.terminate()
   }
-  worker.onerror = function () {
+  worker.onerror = function (message, stack) {
     console.log('! >>> worker error')
-    try { this.terminate() } catch (ex) { }
+    try { worker.terminate() } catch (ex) { }
   }
   worker.postMessage(request)
   if (self.options.verboseP) console.log('! <<< ' + JSON.stringify(request, null, 2))

@@ -1,12 +1,10 @@
 /* jshint asi: true, node: true, laxbreak: true, laxcomma: true, undef: true, unused: true */
 /* global define, self */
 
-define([ 'console' ], function (console) {
-console.log('hello worker')
 var anonize = require('node-anonize2-relic-emscripten/index.js')
-console.log('anonize loaded')
 
-self.onmessage = function (request) {
+self.onmessage = function (evt) {
+  const request = evt.data
   var d = function (err, result) {
     self.postMessage({ msgno: request.msgno, err: err, result: result })
   }
@@ -44,4 +42,3 @@ self.onmessage = function (request) {
     d(ex.toString())
   }
 }
-})
