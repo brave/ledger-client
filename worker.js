@@ -7,8 +7,11 @@ console.log('\n\nhello worker\n\n')
 var anonize = require('node-anonize2-relic-emscripten/index.js')
 
 self.onmessage = function (evt) {
+  console.log('\n\nonmessage: ' + JSON.stringify(evt, null, 2))
   var request = evt.data
+
   var d = function (err, result) {
+    console.log('\n\npostMessage: ' + JSON.stringify({ msgno: request.msgno, err: err, result: result }, null, 2))
     self.postMessage({ msgno: request.msgno, err: err, result: result })
   }
 
