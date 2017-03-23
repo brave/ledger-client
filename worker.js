@@ -1,5 +1,5 @@
 /* jshint asi: true, node: true, laxbreak: true, laxcomma: true, undef: true, unused: true */
-/* global define, self */
+/* global self */
 
 var anonize = require('node-anonize2-relic-emscripten/index.js')
 

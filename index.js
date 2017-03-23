@@ -45,7 +45,7 @@ var Client = function (personaId, options, state) {
 
   this.seqno = 0
   this.callbacks = {}
-  if (!self.options.startWorker) self.initializeHelper()
+  if (!self.options.createWorker) self.initializeHelper()
 }
 
 var msecs = { day: 24 * 60 * 60 * 1000,
@@ -904,11 +904,14 @@ Client.prototype.credentialWorker = function (operation, payload, callback) {
     worker.terminate()
   }
   worker.onerror = function (message, stack) {
-    console.log('! >>> worker error')
+    console.log('! >>> worker error: ' + message)
+    console.log(stack)
     try { worker.terminate() } catch (ex) { }
   }
-  worker.postMessage(request)
+
+  worker.start()
   if (self.options.verboseP) console.log('! <<< ' + JSON.stringify(request, null, 2))
+  worker.postMessage(request)
 }
 
 Client.prototype.credentialRoundTrip = function (operation, payload, callback) {
@@ -916,14 +919,14 @@ Client.prototype.credentialRoundTrip = function (operation, payload, callback) {
   var request = { msgno: msgno, operation: operation, payload: payload }
 
   this.callbacks[msgno] = { verboseP: this.options.verboseP, callback: callback }
-  this.helper.send(request)
   if (this.options.verboseP) console.log('! <<< ' + JSON.stringify(request, null, 2))
+  this.helper.send(request)
 }
 
 Client.prototype.credentialRequest = function (credential, callback) {
   var proof
 
-  if (this.options.startWorker) return this.credentialWorker('request', { credential: JSON.stringify(credential) }, callback)
+  if (this.options.createWorker) return this.credentialWorker('request', { credential: JSON.stringify(credential) }, callback)
 
   if (this.helper) this.credentialRoundTrip('request', { credential: JSON.stringify(credential) }, callback)
 
@@ -932,7 +935,7 @@ Client.prototype.credentialRequest = function (credential, callback) {
 }
 
 Client.prototype.credentialFinalize = function (credential, verification, callback) {
-  if (this.options.startWorker) return this.credentialWorker('finalize', { credential: JSON.stringify(credential) }, callback)
+  if (this.options.createWorker) return this.credentialWorker('finalize', { credential: JSON.stringify(credential) }, callback)
 
   if (this.helper) return this.credentialRoundTrip('finalize', { credential: JSON.stringify(credential) }, callback)
 
@@ -943,7 +946,7 @@ Client.prototype.credentialFinalize = function (credential, verification, callba
 Client.prototype.credentialSubmit = function (credential, surveyor, data, callback) {
   var payload
 
-  if (this.options.startWorker) {
+  if (this.options.createWorker) {
     return this.credentialWorker('submit',
                                  { credential: JSON.stringify(credential), surveyor: JSON.stringify(surveyor), data: data },
                                  callback)
