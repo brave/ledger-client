@@ -909,9 +909,11 @@ Client.prototype.credentialWorker = function (operation, payload, callback) {
     try { worker.terminate() } catch (ex) { }
   }
 
+  worker.on('start', function () {
+    if (self.options.verboseP) console.log('! <<< ' + JSON.stringify(request, null, 2))
+    worker.postMessage(request)
+  })
   worker.start()
-  if (self.options.verboseP) console.log('! <<< ' + JSON.stringify(request, null, 2))
-  worker.postMessage(request)
 }
 
 Client.prototype.credentialRoundTrip = function (operation, payload, callback) {
