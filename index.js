@@ -937,9 +937,14 @@ Client.prototype.credentialRequest = function (credential, callback) {
 }
 
 Client.prototype.credentialFinalize = function (credential, verification, callback) {
-  if (this.options.createWorker) return this.credentialWorker('finalize', { credential: JSON.stringify(credential) }, callback)
+  if (this.options.createWorker) {
+    return this.credentialWorker('finalize', { credential: JSON.stringify(credential), verification: verification }, callback)
+  }
 
-  if (this.helper) return this.credentialRoundTrip('finalize', { credential: JSON.stringify(credential) }, callback)
+  if (this.helper) {
+    return this.credentialRoundTrip('finalize', { credential: JSON.stringify(credential), verification: verification },
+                                    callback)
+  }
 
   try { credential.finalize(verification) } catch (ex) { return callback(ex) }
   callback(null, { credential: JSON.stringify(credential) })
