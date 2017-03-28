@@ -649,11 +649,12 @@ Client.prototype._commitBallot = function (ballot, transaction, callback) {
       transaction.ballots[ballot.publisher]++
 
       for (i = self.state.ballots.length - 1; i >= 0; i--) {
-        if (self.state.ballots[i] !== ballot) continue
+        if (self.state.ballots[i].surveyorId !== ballot.surveyorId) continue
 
         self.state.ballots.splice(i, 1)
         break
       }
+      if (i < 0) console.log('\n\nunable to find ballot surveyorId=' + ballot.surveyorId)
 
       self._log('_commitBallot', { delayTime: msecs.minute })
       callback(null, self.state, msecs.minute)
