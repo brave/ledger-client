@@ -14,7 +14,8 @@ var Client = function (personaId, options, state) {
 
   var self = this
 
-  var later = underscore.now() + (15 * msecs.minute)
+  var now = underscore.now()
+  var later = now + (15 * msecs.minute)
 
   if (!personaId) personaId = uuid.v4().toLowerCase()
 
@@ -36,6 +37,7 @@ var Client = function (personaId, options, state) {
   self.state = underscore.defaults(state || {}, { personaId: personaId, options: self.options, ballots: [], transactions: [] })
   self.logging = []
 
+  if (self.options.rulesTestP) self.state.updatesStamp = now - 1
   if ((self.state.updatesStamp) && (self.state.updatesStamp > later)) {
     self.state.updatesStamp = later
     if (self.options.verboseP) self.state.updatesDate = new Date(self.state.updatesStamp)
@@ -754,7 +756,7 @@ Client.prototype._updatePublishersV2 = function (callback) {
     if (err) return callback(err)
 
     if (publishers.length === 0) {
-      self.state.updatesStamp = underscore.now() + (self.options.debugP ? msecs.hour : msecs.day)
+      self.state.updatesStamp = underscore.now() + msecs.hour
       if (self.options.verboseP) self.state.updatesDate = new Date(self.state.updatesStamp)
 
       return callback()
