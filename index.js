@@ -704,7 +704,7 @@ Client.prototype._updateRulesV2 = function (callback) {
   self.state.updatesStamp = underscore.now() + msecs.hour
   if (self.options.verboseP) self.state.updatesDate = new Date(self.state.updatesStamp)
 
-  path = '/v2/publisher/ruleset?limit=512'
+  path = '/v2/publisher/ruleset?limit=512&excludedOnly=false'
   if (self.state.rulesV2Stamp) path += '&timestamp=' + self.state.rulesV2Stamp
   self.roundtrip({ path: path, method: 'GET' }, function (err, response, ruleset) {
     var c, i, rule, ts
