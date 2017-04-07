@@ -130,7 +130,9 @@ Client.prototype.sync = function (callback) {
 
   for (i = self.state.transactions.length - 1; i > 0; i--) {
     transaction = self.state.transactions[i]
-    if ((transaction.count === transaction.votes) && (!!transaction.credential)) {
+    ballot = underscore.find(self.state.ballots, function (ballot) { return (ballot.viewingId === transaction.viewingId) })
+
+    if ((transaction.count === transaction.votes) && (!!transaction.credential) && (!ballot)) {
       self.state.transactions[i] = underscore.omit(transaction, [ 'credential', 'surveyorIds', 'err' ])
       updateP = true
     }
