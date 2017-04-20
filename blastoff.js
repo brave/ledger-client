@@ -85,6 +85,8 @@ var callback = function (err, result, delayTime) {
     console.log('\nplease click here for payment: bitcoin:' + result.paymentInfo.address + '?amount=' +
                 result.paymentInfo.btc + '\n')
   }
+  delete result.publishersV2
+  delete result.rulesetV2
   fs.writeFile(configFile, JSON.stringify(result, null, 2), { encoding: 'utf8', mode: parseInt('644', 8) }, function (err) {
     if (err) oops(configFile, err)
 

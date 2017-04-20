@@ -37,7 +37,10 @@ var Client = function (personaId, options, state) {
   self.state = underscore.defaults(state || {}, { personaId: personaId, options: self.options, ballots: [], transactions: [] })
   self.logging = []
 
-  if (self.options.rulesTestP) self.state.updatesStamp = now - 1
+  if (self.options.rulesTestP) {
+    self.state.updatesStamp = now - 1
+    if (self.options.verboseP) self.state.updatesDate = new Date(self.state.updatesStamp)
+  }
   if ((self.state.updatesStamp) && (self.state.updatesStamp > later)) {
     self.state.updatesStamp = later
     if (self.options.verboseP) self.state.updatesDate = new Date(self.state.updatesStamp)
@@ -71,6 +74,7 @@ Client.prototype.sync = function (callback) {
     return self.setTimeUntilReconcile(null, callback)
   }
 
+// begin: legacy updates...
   if (self.state.ruleset) {
     self.state.ruleset.forEach(function (rule) {
       if (rule.consequent) return
@@ -81,14 +85,32 @@ Client.prototype.sync = function (callback) {
     delete self.state.ruleset
   }
   if (!self.state.ruleset) {
-    self.state.ruleset = []
-    ledgerPublisher.ruleset.forEach(function (rule) { if (rule.consequent) self.state.ruleset.push(rule) })
+    self.state.ruleset = [
+      {
+        condition: '/^[a-z][a-z].gov$/.test(SLD)',
+        consequent: 'QLD + \'.\' + SLD',
+        description: 'governmental sites'
+      },
+      {
+        condition: "TLD === 'gov' || /^go.[a-z][a-z]$/.test(TLD) || /^gov.[a-z][a-z]$/.test(TLD)",
+        consequent: 'SLD',
+        description: 'governmental sites'
+      },
+      {
+        condition: true,
+        consequent: 'SLD',
+        description: 'the default rule'
+      }
+    ]
+    self.state.updatesStamp = now - 1
+    if (self.options.verboseP) self.state.updatesDate = new Date(self.state.updatesStamp)
   }
   if (self.state.verifiedPublishers) {
     delete self.state.verifiedPublishers
     self.state.updatesStamp = now - 1
     if (self.options.verboseP) self.state.updatesDate = new Date(self.state.updatesStamp)
   }
+// end: legacy updates...
 
   if (self.state.updatesStamp < now) {
     return self._updateRules(function (err) {
