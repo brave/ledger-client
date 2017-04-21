@@ -4,6 +4,7 @@ var http = require('http')
 var https = require('https')
 var Joi = require('joi')
 var ledgerPublisher = require('ledger-publisher')
+var path = require('path')
 var random = require('random-lib')
 var underscore = require('underscore')
 var url = require('url')
@@ -111,6 +112,15 @@ Client.prototype.sync = function (callback) {
     if (self.options.verboseP) self.state.updatesDate = new Date(self.state.updatesStamp)
   }
 // end: legacy updates...
+
+  if ((!self.state.publishersV2Stamp) && (!self.state.rulesV2Stamp)) {
+    try {
+      var bootstrap = require(path.join(__dirname, 'bootstrap'))
+
+      underscore.extend(self.state, bootstrap)
+      return callback(null, self.state, msecs.minute)
+    } catch (ex) {}
+  }
 
   if (self.state.updatesStamp < now) {
     return self._updateRules(function (err) {
