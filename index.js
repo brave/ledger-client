@@ -103,8 +103,6 @@ Client.prototype.sync = function (callback) {
         description: 'the default rule'
       }
     ]
-    self.state.updatesStamp = now - 1
-    if (self.options.verboseP) self.state.updatesDate = new Date(self.state.updatesStamp)
   }
   if (self.state.verifiedPublishers) {
     delete self.state.verifiedPublishers
@@ -113,7 +111,7 @@ Client.prototype.sync = function (callback) {
   }
 // end: legacy updates...
 
-  if ((!self.state.publishersV2Stamp) && (!self.state.rulesV2Stamp)) {
+  if ((self.credentials) && (!self.state.publishersV2Stamp) && (!self.state.rulesV2Stamp)) {
     try {
       var bootstrap = require(path.join(__dirname, 'bootstrap'))
 
