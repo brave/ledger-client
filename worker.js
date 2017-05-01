@@ -1,7 +1,7 @@
 /* jshint asi: true, node: true, laxbreak: true, laxcomma: true, undef: true, unused: true */
 /* global self */
 
-var anonize = require('node-anonize2-relic-emscripten/index.js')
+var anonize = require('node-anonize2-relic-emscripten')
 
 self.onmessage = function (evt) {
   var request = evt.data

@@ -4,7 +4,6 @@ var http = require('http')
 var https = require('https')
 var Joi = require('joi')
 var ledgerPublisher = require('ledger-publisher')
-var os = require('os')
 var path = require('path')
 var random = require('random-lib')
 var underscore = require('underscore')
@@ -927,11 +926,7 @@ Client.prototype.credentialWorker = function (operation, payload, callback) {
 
   self.callbacks[msgno] = { verboseP: self.options.verboseP, callback: callback }
 
-  if (os.platform() !== 'win32') {
-    worker = self.options.createWorker('ledger-client/worker.js')
-  } else {
-    worker = self.options.createWorker('ledger-client/worker')
-  }
+  worker = self.options.createWorker('ledger-client/worker.js')
   worker.onmessage = function (evt) {
     const response = evt.data
     var state = self.callbacks[response.msgno]
