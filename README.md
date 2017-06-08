@@ -95,7 +95,7 @@ indicating that persistent storage be updated.
         })
 
 ### Reconcilation, Part One
-The client should periodical call:
+The client should periodically call:
 
         var nowP = client.isReadyToReconcile()
 
