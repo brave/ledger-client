@@ -54,11 +54,12 @@ var Client = function (personaId, options, state) {
   if (!self.options.createWorker) self.initializeHelper()
 }
 
-var msecs = { day: 24 * 60 * 60 * 1000,
-              hour: 60 * 60 * 1000,
-              minute: 60 * 1000,
-              second: 1000
-            }
+var msecs = {
+  day: 24 * 60 * 60 * 1000,
+  hour: 60 * 60 * 1000,
+  minute: 60 * 1000,
+  second: 1000
+}
 
 Client.prototype.sync = function (callback) {
   var self = this
@@ -96,6 +97,11 @@ Client.prototype.sync = function (callback) {
         condition: "TLD === 'gov' || /^go.[a-z][a-z]$/.test(TLD) || /^gov.[a-z][a-z]$/.test(TLD)",
         consequent: 'SLD',
         description: 'governmental sites'
+      },
+      {
+        condition: "SLD === 'keybase.pub'",
+        consequent: 'QLD + \'.\' + SLD',
+        description: 'keybase users'
       },
       {
         condition: true,
@@ -367,10 +373,10 @@ Client.prototype.vote = function (publisher, viewingId) {
   if (i < 0) return
 
   this.state.ballots.push({ viewingId: transaction.viewingId,
-                            surveyorId: transaction.surveyorIds[transaction.votes],
-                            publisher: publisher,
-                            offset: transaction.votes
-                          })
+    surveyorId: transaction.surveyorIds[transaction.votes],
+    publisher: publisher,
+    offset: transaction.votes
+  })
   transaction.votes++
 
   return this.state
@@ -400,8 +406,8 @@ Client.prototype.recoverWallet = function (recoveryId, passPhrase, callback) {
 
     try {
       underscore.extend(body.keychains.user,
-                        { xprv: bitgo.decrypt({ password: passPhrase, input: body.keychains.user.encryptedXprv }),
-                          passphrase: passPhrase })
+        { xprv: bitgo.decrypt({ password: passPhrase, input: body.keychains.user.encryptedXprv }),
+          passphrase: passPhrase })
     } catch (ex) {
       return callback(new Error('invalid passphrase'))
     }
@@ -445,8 +451,8 @@ Client.prototype._registerPersona = function (callback) {
       keychains.user.encryptedXprv = bitgo.encrypt({ password: keychains.passphrase, input: keychains.user.xprv })
       keychains.user.path = 'm'
       payload = { keychains: { user: underscore.pick(keychains.user, [ 'xpub', 'path', 'encryptedXprv' ]) },
-                  proof: result.proof
-                }
+        proof: result.proof
+      }
 
       path = '/v1/registrar/persona/' + credential.parameters.userId
       self.roundtrip({ path: path, method: 'POST', payload: payload }, function (err, response, body) {
@@ -482,11 +488,11 @@ Client.prototype._registerPersona = function (callback) {
           }
           fee = { currency: currency, amount: configuration.fee[currency] }
           self.state.properties = { setting: 'adFree',
-                                    fee: fee,
-                                    days: days,
-                                    configuration: body.contributions,
-                                    wallet: underscore.extend(body.wallet, { keychains: keychains })
-                                  }
+            fee: fee,
+            days: days,
+            configuration: body.contributions,
+            wallet: underscore.extend(body.wallet, { keychains: keychains })
+          }
           self.state.bootStamp = underscore.now()
           if (self.options.verboseP) self.state.bootDate = new Date(self.state.bootStamp)
           self.state.reconcileStamp = self.state.bootStamp + (self.state.properties.days * msecs.day)
@@ -526,11 +532,11 @@ Client.prototype._currentReconcile = function (callback) {
       }
 
       self.state.paymentInfo = underscore.extend(underscore.pick(body, [ 'balance', 'buyURL', 'recurringURL', 'satoshis' ]),
-                                 { address: self.state.properties.wallet.address,
-                                   btc: btc,
-                                   amount: amount,
-                                   currency: currency
-                                 })
+        { address: self.state.properties.wallet.address,
+          btc: btc,
+          amount: amount,
+          currency: currency
+        })
 
       delayTime = random.randomInt({ min: msecs.second, max: (self.options.debugP ? 1 : 10) * msecs.minute })
       self._log('_currentReconcile', { reason: 'balance < btc', balance: body.balance, btc: btc, delayTime: delayTime })
@@ -542,9 +548,9 @@ Client.prototype._currentReconcile = function (callback) {
 
     wallet = bitgo.newWalletObject({ wallet: { id: self.state.properties.wallet.address } })
     wallet.signTransaction({ transactionHex: body.unsignedTx.transactionHex,
-                             unspents: body.unsignedTx.unspents,
-                             keychain: self.state.properties.wallet.keychains.user
-                           }, function (err, signedTx) {
+      unspents: body.unsignedTx.unspents,
+      keychain: self.state.properties.wallet.keychains.user
+    }, function (err, signedTx) {
       var payload
 
       self._log('_currentReconcile', { wallet: 'signTransaction', errP: !!err })
@@ -559,16 +565,16 @@ Client.prototype._currentReconcile = function (callback) {
         if (err) return callback(err)
 
         transaction = { viewingId: viewingId,
-                        surveyorId: surveyorInfo.surveyorId,
-                        contribution: { fiat: { amount: amount, currency: currency },
-                                        rates: rates,
-                                        satoshis: body.satoshis,
-                                        fee: fee
-                                      },
-                        submissionStamp: body.paymentStamp,
-                        submissionDate: self.options.verboseP ? new Date(body.paymentStamp) : undefined,
-                        submissionId: body.hash
-                      }
+          surveyorId: surveyorInfo.surveyorId,
+          contribution: { fiat: { amount: amount, currency: currency },
+            rates: rates,
+            satoshis: body.satoshis,
+            fee: fee
+          },
+          submissionStamp: body.paymentStamp,
+          submissionDate: self.options.verboseP ? new Date(body.paymentStamp) : undefined,
+          submissionId: body.hash
+        }
         self.state.transactions.push(transaction)
         delete self.state.currentReconcile
 
@@ -618,12 +624,12 @@ Client.prototype._registerViewing = function (viewingId, callback) {
 
             // NB: use of `underscore.extend` requires that the parameter be `self.state.transactions[i]`
             underscore.extend(self.state.transactions[i],
-                              { credential: result.credential,
-                                surveyorIds: body.surveyorIds,
-                                count: body.surveyorIds.length,
-                                satoshis: body.satoshis,
-                                votes: 0
-                              })
+              { credential: result.credential,
+                surveyorIds: body.surveyorIds,
+                count: body.surveyorIds.length,
+                satoshis: body.satoshis,
+                votes: 0
+              })
             self._log('_registerViewing', { delayTime: msecs.minute })
             return callback(null, self.state, msecs.minute)
           }

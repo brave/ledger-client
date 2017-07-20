@@ -1,6 +1,6 @@
 {
   "name": "ledger-client",
-  "version": "0.9.18",
+  "version": "0.9.19",
   "description": "An example of client code for the Brave ledger.",
   "main": "index.js",
   "scripts": {
@@ -21,24 +21,25 @@
   },
   "homepage": "https://github.com/brave/ledger-client",
   "dependencies": {
-    "bitgo": "^2.1.5",
-    "joi": "^9.0.0-2",
-    "ledger-publisher": "^0.9.4",
+    "bitgo": "^3.4.4",
+    "joi": "^10.6.0",
+    "ledger-publisher": "^0.9.5",
     "node-anonize2-relic-emscripten": "^0.3.3",
     "random-lib": "2.1.0",
     "underscore": "1.8.3",
-    "uuid": "3.0.0"
+    "uuid": "3.1.0"
   },
   "engines": {
-    "node": ">= 7.0.0"
+    "node": "7.10.1",
+    "npm": "4.2.0"
   },
   "devDependencies": {
-    "del": "^2.0.2",
+    "del": "^3.0.0",
     "gulp": "^3.9.0",
-    "gulp-standard": "^5.2.2",
+    "gulp-standard": "^10.0.0",
     "nsp": "^2.2.0",
-    "run-sequence": "^1.1.0",
-    "standard": "8.1.0"
+    "run-sequence": "^2.0.0",
+    "standard": "10.0.2"
   },
   "standard": {
     "ignore": [ "bootstrap.js" ]
