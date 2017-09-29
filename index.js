@@ -412,7 +412,7 @@ Client.prototype.recoverWallet = function (recoveryId, passPhrase, callback) {
       return callback(new Error('invalid passphrase'))
     }
 
-    self.state.properties.wallet = underscore.defaults({ paymentId: recoveryId },
+    self.state.properties.wallet = underscore.defaults({ paymentId: recoveryId, passphrase: passPhrase },
                                                        underscore.pick(body, [ 'address', 'keychains' ]))
 
     callback(null, self.state, underscore.omit(body, [ 'address', 'keychains' ]))
