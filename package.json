@@ -1,6 +1,6 @@
 {
   "name": "ledger-client",
-  "version": "0.9.21",
+  "version": "0.9.22",
   "description": "An example of client code for the Brave ledger.",
   "main": "index.js",
   "scripts": {
