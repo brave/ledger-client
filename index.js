@@ -871,6 +871,7 @@ Client.prototype._roundTrip = function (params, callback) {
       try {
         callback(null, response, payload)
       } catch (err0) {
+        if (err0 instanceof AssertionError) throw err0 //needed for testing
         if (self.options.verboseP) console.log('callback: ' + err0.toString() + '\n' + err0.stack)
       }
     }).setEncoding('utf8')
