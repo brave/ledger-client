@@ -16,6 +16,7 @@ expect = chai.expect
 var server = url.parse('https://localhost')
 var options = { server: server, debugP: false, loggingP: false, verboseP: false }
 var client = require('../index.js')("7c5d8057-cbd9-48dd-9c87-af04f77e571a", options, {});
+var sandbox = sinon.createSandbox();
 
 describe('client', function() {
 
@@ -24,66 +25,109 @@ describe('client', function() {
 
   var viewingId1 = "4f3067eb-1156-4bac-b604-1c2214bf4ce2"
   var viewingId2 = "3de7feb8-63cc-4dd5-a3bd-b0aa67c6f180"
+  var surveyorIds1 = ["7qgfSlOmypD0RuFUfBEEZ/m98YvC/6+1etWd5dUlko+"]
   var surveyorIds2 = ["7qgfSlOmypD0RuFUfBEEZ/m98YvC/6+1etWd5dUlko+"]
-  client.state.transactions = [
-    {
+
+  var mockCredParameters = {"userId": "dd85ff07748142aa77acd545357ad40", "registrarVK": "==========ANONLOGIN_VK_BEG==========\\n8qSzvRre6Ctso8z4wHJH/20YQ70v2DAWeYzsmv6RKVr 2AVAyqqlat/yboyKhWhqHi5Oah/MBQOlhPtke7vZyZ7 1\\nAZirScmoBKMo4izS7nNQ2+NS3LEc45oB3OHf8cQDp9G 5AZV4BCwzAKaczSV8fVV8CgrcT49aQOOmbPLKPuFlFv 1\\n7TFr0dF/HoV0UyOSLzrER912BAbZ5HGZE2sQLnpKK3V 8RS8XL4j39Bncugkgt/n/6hOmwupapZlPPC+QlR+nDT 1\\nApWlU7Dr3YvU/q0GcQWcpN4/mKKDVxe3nw7EckIdexm Aig/OjtTPALgUIWgaDf4UCYIh6yOEDpu6tnaUAcP79t 1\\nAPTGi8GzVp/v7f8SjUxWOM8ZQ4MlxFg4oLChkEb/4H3 4sTlMQWQrDTy9eelR8k21BfPdfQplYVHealj92oVgj6 9K7kkJi2jZetyDaSHBG0+xnAfYD2q6x3zzCsyhAQA6A 7EFPVRUXw+3H+OD7vhQ2gwknJw7prJZ/G6njidv18QS 1 0\\n===========ANONLOGIN_VK_END==========", masterUserToken: "==========ANONLOGIN_CRED_BEG==========\\ndd85ff07748142aa77acd545357ad40\\n9wQhO2Oc5/K1gZ+w9+c3j1lu6z7NVpfAT4a6dgXYlnO\\n5pAHJn0+lAx9h5V9Ezom0MeUKx9ulG8hkdAz9OradGd 5lJaAWnjBtYtaaNoU93Uiij2eUelBcsU4XbsIQ3IjgJ 1\\n14+2ID681khx4rwmoQBmPGK+lrTkdudXgaOdsSNy/QN\\nCkAhjw3GS4k10ftLysqDgP1k4yZMXD0rXBxJoa8IfkP\\n===========ANONLOGIN_CRED_END=========="}
+  var mockCred = {"parameters": underscore.clone(mockCredParameters) }
+
+  var mockTransactions = [{
       viewingId: viewingId1,
-      surveyorIds: ["7qgfSlOmypD0RuFUfBEEZ/m98YvC/6+1etWd5dUlko+"],
+      surveyorIds: surveyorIds1,
       contribution: { fiat: { amount: 50, currency: "BAT" },
         rates: 0.0004724924142289473,
         satoshis: 0.00002123,
         fee: 0.15491044219204892
       },
+      ballots: {
+        "wikipedia.com": 3,
+      },
       votes: 3,
       count: 10,
       submissionStamp: 9481492768539,
-      credential: {"userId":"dd85ff07748142aa77acd545357ad40","registrarVK":"==========ANONLOGIN_VK_BEG==========\\n8qSzvRre6Ctso8z4wHJH/20YQ70v2DAWeYzsmv6RKVr 2AVAyqqlat/yboyKhWhqHi5Oah/MBQOlhPtke7vZyZ7 1\\nAZirScmoBKMo4izS7nNQ2+NS3LEc45oB3OHf8cQDp9G 5AZV4BCwzAKaczSV8fVV8CgrcT49aQOOmbPLKPuFlFv 1\\n7TFr0dF/HoV0UyOSLzrER912BAbZ5HGZE2sQLnpKK3V 8RS8XL4j39Bncugkgt/n/6hOmwupapZlPPC+QlR+nDT 1\\nApWlU7Dr3YvU/q0GcQWcpN4/mKKDVxe3nw7EckIdexm Aig/OjtTPALgUIWgaDf4UCYIh6yOEDpu6tnaUAcP79t 1\\nAPTGi8GzVp/v7f8SjUxWOM8ZQ4MlxFg4oLChkEb/4H3 4sTlMQWQrDTy9eelR8k21BfPdfQplYVHealj92oVgj6 9K7kkJi2jZetyDaSHBG0+xnAfYD2q6x3zzCsyhAQA6A 7EFPVRUXw+3H+OD7vhQ2gwknJw7prJZ/G6njidv18QS 1 0\\n===========ANONLOGIN_VK_END==========","masterUserToken":"==========ANONLOGIN_CRED_BEG==========\\ndd85ff07748142aa77acd545357ad40\\n9wQhO2Oc5/K1gZ+w9+c3j1lu6z7NVpfAT4a6dgXYlnO\\n5pAHJn0+lAx9h5V9Ezom0MeUKx9ulG8hkdAz9OradGd 5lJaAWnjBtYtaaNoU93Uiij2eUelBcsU4XbsIQ3IjgJ 1\\n14+2ID681khx4rwmoQBmPGK+lrTkdudXgaOdsSNy/QN\\nCkAhjw3GS4k10ftLysqDgP1k4yZMXD0rXBxJoa8IfkP\\n===========ANONLOGIN_CRED_END=========="}
+      credential: underscore.clone(mockCredParameters)
     },
     {
       viewingId: viewingId2,
       surveyorIds: surveyorIds2,
       votes: 0,
       count: 15,
+      ballots: {
+        "wikipedia.com": 4,
+      },
       contribution: { fiat: { amount: 50, currency: "BAT" },
         rates: 0.0004724924142282941,
         satoshis: 0.00002195,
         fee: 0.154910442192194832
       },
       submissionStamp: 9481492764931,
-      credential: {"userId":"dd85ff07748142aa77acd545357ad40","registrarVK":"==========ANONLOGIN_VK_BEG==========\\n8qSzvRre6Ctso8z4wHJH/20YQ70v2DAWeYzsmv6RKVr 2AVAyqqlat/yboyKhWhqHi5Oah/MBQOlhPtke7vZyZ7 1\\nAZirScmoBKMo4izS7nNQ2+NS3LEc45oB3OHf8cQDp9G 5AZV4BCwzAKaczSV8fVV8CgrcT49aQOOmbPLKPuFlFv 1\\n7TFr0dF/HoV0UyOSLzrER912BAbZ5HGZE2sQLnpKK3V 8RS8XL4j39Bncugkgt/n/6hOmwupapZlPPC+QlR+nDT 1\\nApWlU7Dr3YvU/q0GcQWcpN4/mKKDVxe3nw7EckIdexm Aig/OjtTPALgUIWgaDf4UCYIh6yOEDpu6tnaUAcP79t 1\\nAPTGi8GzVp/v7f8SjUxWOM8ZQ4MlxFg4oLChkEb/4H3 4sTlMQWQrDTy9eelR8k21BfPdfQplYVHealj92oVgj6 9K7kkJi2jZetyDaSHBG0+xnAfYD2q6x3zzCsyhAQA6A 7EFPVRUXw+3H+OD7vhQ2gwknJw7prJZ/G6njidv18QS 1 0\\n===========ANONLOGIN_VK_END==========","masterUserToken":"==========ANONLOGIN_CRED_BEG==========\\ndd85ff07748142aa77acd545357ad40\\n9wQhO2Oc5/K1gZ+w9+c3j1lu6z7NVpfAT4a6dgXYlnO\\n5pAHJn0+lAx9h5V9Ezom0MeUKx9ulG8hkdAz9OradGd 5lJaAWnjBtYtaaNoU93Uiij2eUelBcsU4XbsIQ3IjgJ 1\\n14+2ID681khx4rwmoQBmPGK+lrTkdudXgaOdsSNy/QN\\nCkAhjw3GS4k10ftLysqDgP1k4yZMXD0rXBxJoa8IfkP\\n===========ANONLOGIN_CRED_END=========="}
+      credential: underscore.clone(mockCredParameters)
     }
   ]
 
-  client.state.ballots = [{
+
+  mockBallots = [{
     viewingId: '1f0e8dc1-382a-4697-880c-a6d175f36be2',
-    surveyorId: 'db091909-4343-4ee3-a14f-44ab79646535',
+    surveyorId: surveyorIds1,
     publisher: 'wikipedia.com',
     offset: 2
   }]
 
+
   describe('ballots', function() {
+    beforeEach(function () {
+      viewingId = 'd1f36028-4310-4d52-8dd7-c3e50ceddb93'
+      clientStateTransactions = sinon.stub(client.state, 'transactions')
+      client.state.transactions = [
+        { votes: 3, count: 10, viewingId: viewingId },
+        { votes: 0, count: 15, viewingId: 'randomUUID' }
+      ]
+    })
+
     it('returns count - votes for transactions with given viewingId', function() {
-      assert.equal(client.ballots(viewingId1), 7);
+      assert.equal(client.ballots(viewingId), 7);
     });
 
-    it('returns count - votes for transactions for all transactions', function() {
+    it('returns count - votes for all transactions', function() {
       assert.equal(client.ballots(), 22);
     });
+
+    afterEach(function () {
+      clientStateTransactions.restore()
+      delete viewingId
+    })
   });
 
 
   describe('vote', function() {
+    beforeEach(function () {
+      viewingId = 'd1f36028-4310-4d52-8dd7-c3e50ceddb93'
+      surveyorId = '2a699d6d-49d7-4ebd-a8f5-33cb5ed4fc99'
+      clientStateTransactions = sinon.stub(client.state, 'transactions')
+      client.state.transactions = [
+        { votes: 0, count: 15, surveyorIds: [surveyorId], viewingId: viewingId }
+      ]
+      clientStateBallots = sinon.stub(client.state, 'ballots')
+      client.state.ballots = []
+    })
+
     it('throws error when missing publisher parameter', function() {
       assert.throws(client.vote, /missing publisher parameter/)
     });
 
     it('pushes vote to ballot', function() {
       var publisher = 'wikipedia.com'
-      client.state.ballots = []
-      client.vote(publisher, viewingId2)
-      assert.deepEqual(client.state.ballots, [{surveyorId: surveyorIds2[0], publisher: publisher, offset: 0, viewingId: viewingId2}])
-      assert.equal(client.state.transactions[1].votes, 1)
+      client.vote(publisher, viewingId)
+      assert.deepEqual(client.state.ballots, [{surveyorId: surveyorId, publisher: publisher, offset: 0, viewingId: viewingId}])
+      assert.equal(client.state.transactions[0].votes, 1)
     });
+
+    afterEach(function () {
+      clientStateTransactions.restore()
+      clientStateBallots.restore()
+      delete viewingId
+      delete surveyorId
+    })
   });
 
 
@@ -196,12 +240,105 @@ describe('client', function() {
     });
   })
 
+  describe('_registerViewing', function() {
+    beforeEach(function () {
+      sandbox.stub(mockCred)
+      clientStateTransactions = sinon.stub(client.state, 'transactions')
+      viewingId = 'c9190824-410a-40a8-82e4-f72f427bb23a'
+      sandbox.stub(client.state.transactions)
+      client.state.transactions = [
+        { viewingId: viewingId }
+      ]
+      anonizeCredential = sinon.stub(anonize, 'Credential').returns(mockCred)
+    })
+
+    it('calls callback with error if API returns error', function() {
+      client.roundtrip = sinon.stub().callsArgWith(1, 'test error', 'response', {})
+      credentialRequest = sinon.stub(client, 'credentialRequest').callsArgWith(1, 'test error', 'response', {})
+
+      callback = sinon.spy()
+      client._registerViewing(viewingId, callback)
+
+      assert(callback.calledWith('test error'))
+      credentialRequest.restore()
+      delete client.roundtrip
+    });
+
+    it('makes post to viewing endpoint with cred userId', function() {
+      client.roundtrip = sinon.stub()
+      client.roundtrip.withArgs(sinon.match.has('method', 'GET')).callsArgWith(1, false, 'response', {})
+      var credentialRequest = sinon.stub(client, 'credentialRequest').callsArgWith(1, false, 'response', {credential: mockCred})
+      client.roundtrip.withArgs(sinon.match.has('method', 'POST'))
+
+      callback = sinon.spy()
+      client._registerViewing(viewingId1, callback)
+
+      sinon.assert.calledWith(
+        client.roundtrip,
+        sinon.match.has('method', 'POST'),
+      )
+      sinon.assert.calledWith(
+        client.roundtrip,
+        sinon.match.has('path', '/v1/registrar/viewing/' + mockCred.parameters.userId)
+      )
+
+      credentialRequest.restore()
+      delete client.roundtrip
+    })
+
+    it('updates transaction for given viewingId', function() {
+      var mockSurveyorIds = ['mockSurveyId']
+      var mockSatoshis = 2342
+
+      client.roundtrip = sinon.stub()
+      client.roundtrip.withArgs(sinon.match.has('method', 'GET')).callsArgWith(1, false, 'response', {})
+      var credentialRequest = sinon.stub(client, 'credentialRequest').callsArgWith(1, false, 'response', {credential: mockCred})
+      client.roundtrip.withArgs(sinon.match.has('method', 'POST')).callsArgWith(1, false, 'response', {
+        verification: 'verification',
+        surveyorIds: mockSurveyorIds,
+        satoshis: mockSatoshis
+      })
+      var credentialFinalize = sinon.stub(client, 'credentialFinalize').callsArgWith(2, false, { credential: mockCred })
+
+
+      var callback = sinon.spy()
+      client._registerViewing(viewingId, callback)
+      expect(client.state.transactions[0]).to.include(
+        {
+          credential: mockCred,
+          surveyorIds: mockSurveyorIds,
+          count: mockSurveyorIds.length,
+          satoshis: mockSatoshis,
+          votes: 0
+        })
+
+      credentialRequest.restore()
+      delete client.roundtrip
+      credentialFinalize.restore()
+    });
+
+    afterEach(function () {
+      clientStateTransactions.restore()
+      anonizeCredential.restore()
+      sandbox.restore()
+      delete viewingId
+      delete surveyorId
+    })
+  })
+
+
   describe('_prepareBallot', function() {
+    beforeEach(function () {
+      sandbox.stub(mockBallots)
+      sandbox.stub(mockTransactions)
+      clientTransactions = sinon.stub(client.state, 'transactions')
+    })
+
     it('calls callback with error if API returns error', function() {
       client.roundtrip = sinon.stub().callsArgWith(1, 'test error', 'response', {})
 
-      spy = sinon.spy()
-      client._prepareBallot(client.state.ballots[0], client.state.transactions[0], spy)
+      var spy = sinon.spy()
+      client._prepareBallot(mockBallots[0], mockTransactions[0], spy)
 
       assert(spy.calledWith('test error'))
       delete client.roundtrip
@@ -210,14 +347,24 @@ describe('client', function() {
     it('calls passed callback', function() {
       client.roundtrip = sinon.stub().callsArgWith(1, false, 'response', {})
       spy = sinon.spy()
-      client._prepareBallot(client.state.ballots[0], client.state.transactions[0], spy)
+      client._prepareBallot(mockBallots[0], mockTransactions[0], spy)
 
       sinon.assert.calledWith(spy, null, client.state, 60 * 1000)
       delete client.roundtrip
     });
+
+    afterEach(function () {
+      sandbox.restore()
+      clientTransactions.restore()
+    })
   })
 
   describe('_commitBallot', function() {
+    beforeEach(function () {
+      sandbox.stub(mockBallots)
+      sandbox.stub(mockTransactions)
+    })
+
     it('calls callback with error when credential submit fails', function() {
       surveyorId = "1babe30a-6b7c-400b-8bf1-a5cd847d02dd" 
       credentialSubmit = sinon.stub(client, 'credentialSubmit').callsArgWith(3, 'test error', 'result')
@@ -225,7 +372,7 @@ describe('client', function() {
       surveyor = sinon.stub(anonize, 'Surveyor').returns({parameters: { surveyorId: surveyorId }}) 
 
       callback = sinon.spy()
-      client._commitBallot(client.state.ballots[0], client.state.transactions[0], callback)
+      client._commitBallot(mockBallots[0], mockTransactions[0], callback)
       assert(callback.called)
       assert(callback.calledWith('test error'))
 
@@ -233,16 +380,17 @@ describe('client', function() {
       surveyor.restore()
     });
 
-    it('it makes a PUT request', function() {
+    it('it makes a PUT request to the survey endpoint', function() {
       surveyorId = "1babe30a-6b7c-400b-8bf1-a5cd847d02dd" 
-      credentialSubmit = sinon.stub(client, 'credentialSubmit').callsArgWith(3, false, {payload: 'payload'})
-      client.roundtrip = sinon.stub()
-
       surveyor = sinon.stub(anonize, 'Surveyor').returns({parameters: { surveyorId: surveyorId }}) 
       credential = sinon.stub(anonize, 'Credential')
 
+      credentialSubmit = sinon.stub(client, 'credentialSubmit').callsArgWith(3, false, {payload: 'payload'})
+      client.roundtrip = sinon.stub()
+
+
       callback = sinon.spy()
-      client._commitBallot(client.state.ballots[0], client.state.transactions[0], callback)
+      client._commitBallot(mockBallots[0], mockTransactions[0], callback)
 
       sinon.assert.calledWith(client.roundtrip, sinon.match.object, sinon.match.func)
       sinon.assert.calledWith(client.roundtrip, sinon.match.has('path', '/v1/surveyor/voting/' + surveyorId))
@@ -255,6 +403,28 @@ describe('client', function() {
       credentialSubmit.restore()
       delete client.roundtrip
     });
+
+    it('it removes ballot from pending and calls callback', function() {
+      surveyor = sinon.stub(anonize, 'Surveyor').returns({parameters: { surveyorId: surveyorIds2[0] }}) 
+      credentialSubmit = sinon.stub(client, 'credentialSubmit').callsArgWith(3, false, {payload: 'payload'})
+      client.roundtrip = sinon.stub().callsArgWith(1, false, 'response', 'body')
+
+      callback = sinon.spy()
+      client._commitBallot(mockBallots[0], mockTransactions[0], callback)
+
+      assert.equal(client.state.ballots.length, mockBallots.length - 1)
+      assert(callback.called)
+      sinon.assert.calledWith(callback, null, client.state, 60 * 1000)
+
+      surveyor.restore()
+      credential.restore()
+      credentialSubmit.restore()
+      delete client.roundtrip
+    });
+
+    afterEach(function () {
+      sandbox.restore()
+    })
   })
 
   describe('_roundTrip', function() {
