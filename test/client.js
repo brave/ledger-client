@@ -91,7 +91,7 @@ describe('client', function() {
       client.roundtrip.callsArgWith(1, false, 'response', ["test"])
       client._updateRules(callback)
       sinon.assert.called(callback)
-      sinon.assert.calledWith(callback, sinon.match(Error))
+      sinon.assert.calledWithMatch(callback, Error)
     });
   });
 
@@ -167,11 +167,10 @@ describe('client', function() {
       it('makes a POST to the persona userId endpoint', function() {
         client.roundtrip.withArgs(sinon.match.has('method', 'POST'))
         client._registerPersona(() => {})
-        sinon.assert.calledWith(client.roundtrip,
-          sinon.match.typeOf('object')
-            .and(sinon.match.has('method', 'POST'))
-            .and(sinon.match.has('path', '/v1/registrar/persona/' + cred.parameters.userId))
-        )
+        sinon.assert.calledWithMatch(client.roundtrip, {
+          path: '/v1/registrar/persona/' + cred.parameters.userId,
+          method: 'POST'
+        })
       });
 
       context('on succesfull POST to userId endpoint', function () {
@@ -218,9 +217,7 @@ describe('client', function() {
     it('calls callback with error if API returns error', function() {
       client.roundtrip.callsArgWith(1, 'errorTest', 'response', {})
       sandbox.stub(client, 'credentialRequest').callsArgWith(1, 'errorTest', 'response', {})
-
       client._registerViewing('viewingIdTest', callback)
-
       assert(callback.calledWith('errorTest'))
     });
 
@@ -228,17 +225,9 @@ describe('client', function() {
       client.roundtrip.withArgs(sinon.match.has('method', 'GET')).callsArgWith(1, false, 'response', {})
       sandbox.stub(client, 'credentialRequest').callsArgWith(1, false, 'response', {credential: cred})
       client.roundtrip.withArgs(sinon.match.has('method', 'POST'))
-
       client._registerViewing('viewingIdTest', function () {})
-
-      sinon.assert.calledWith(
-        client.roundtrip,
-        sinon.match.has('method', 'POST'),
-      )
-      sinon.assert.calledWith(
-        client.roundtrip,
-        sinon.match.has('path', '/v1/registrar/viewing/' + cred.parameters.userId)
-      )
+      sinon.assert.calledWithMatch(client.roundtrip, {method: 'POST'})
+      sinon.assert.calledWithMatch(client.roundtrip, {path: '/v1/registrar/viewing/' + cred.parameters.userId})
     })
 
     context('if credential setup succesfull', function () {
@@ -269,9 +258,8 @@ describe('client', function() {
         sandbox.stub(client.state, 'transactions').value([{ viewingId: 'vieringIdTestRand' }])
         client._registerViewing('viewingIdTest', callback)
         assert(callback.called)
-        sinon.assert.calledWith(callback, sinon.match(Error))
-        sinon.assert.calledWith(callback,
-          sinon.match(sinon.match.has('message', sinon.match(/not found in transaction list/))))
+        sinon.assert.calledWithMatch(callback, Error)
+        sinon.assert.calledWithMatch(callback, sinon.match.has('message', sinon.match(/not found in transaction list/)))
       });
     });
   })
@@ -336,10 +324,12 @@ describe('client', function() {
       sandbox.stub(client, 'credentialSubmit').callsArgWith(3, false, {payload: 'payload'})
       client._commitBallot(this.ballots[0], this.transactions[0], callback)
       sinon.assert.calledWith(client.roundtrip, sinon.match.object, sinon.match.func)
-      sinon.assert.calledWith(client.roundtrip, sinon.match.has('path', '/v1/surveyor/voting/surveyorIdTest'))
-      sinon.assert.calledWith(client.roundtrip, sinon.match.has('method', 'PUT'))
-      sinon.assert.calledWith(client.roundtrip, sinon.match.has('useProxy', true))
-      sinon.assert.calledWith(client.roundtrip, sinon.match.has('payload', 'payload'))
+      sinon.assert.calledWithMatch(client.roundtrip, {
+        path: '/v1/surveyor/voting/surveyorIdTest',
+        method: 'PUT',
+        useProxy: true,
+        payload: 'payload'
+      })
     });
 
     it('it removes ballot from pending and calls callback', function() {
@@ -580,7 +570,7 @@ describe('client', function() {
 
       it('calls passed callback', function () {
         client._currentReconcile(callback)
-        sinon.assert.calledWithMatch(callback, null, client.state, sinon.match.number.and(sinon.match(function (v) { return ((10 * 60 * 1000) <= v <= 1) })))
+        sinon.assert.calledWithMatch(callback, null, client.state, function (v) { return ((10 * 60 * 1000) <= v <= 1) })
       });
     });
 
