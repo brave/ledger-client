@@ -1,4 +1,5 @@
 var anonize = require('node-anonize2-relic-emscripten')
+var bitgo = require('bitgo').BitGo
 var chai = require('chai');
 var Joi = require('joi')
 var http = require('http');
@@ -319,6 +320,7 @@ describe('client', function() {
     beforeEach(function () {
       sandbox.stub(this, 'ballots').value([{ surveyorId: 'surveyorIdTest', publisher: 'publisherTest'}])
       sandbox.stub(this, 'transactions').value([{ ballots: { domainTest: 2 } }])
+      sandbox.stub(client.state, 'transactions').value([])
       sandbox.stub(anonize, 'Credential').returns(cred)
       sandbox.stub(anonize, 'Surveyor').returns({parameters: { surveyorId: 'surveyorIdTest' }}) 
     })
@@ -510,6 +512,155 @@ describe('client', function() {
       client.setTimeUntilReconcile(300, callback)
       assert.equal(client.state.reconcileStamp, 300)
       sinon.assert.called(callback)
+    });
+  });
+
+  describe('_currentReconcile', function() {
+    before(function () {
+      client.state.properties = {}
+      client.state.currentReconcile = {}
+      client.state.paymentInfo = {}
+    })
+
+    after(function () {
+      delete client.state.properties
+      delete client.state.currentReconcile
+      delete client.state.paymentInfo
+    })
+
+    beforeEach(function () {
+      sandbox.stub(client.state, 'properties').value({
+        setting: 'adFree',
+        fee: { currency: 'USD', amount: 11 },
+        days: 16,
+        wallet: { paymentId: 'paymentIdTest', address: 'addressTest', keychains: { user: 'userTest'} }
+      })
+      sandbox.stub(client.state, 'currentReconcile').value({
+        surveyorInfo: { surveyorId: 'surveyorIdTest' },
+        viewingId: 'viewingIdTest'
+      })
+      sandbox.stub(client.state, 'paymentInfo').value({})
+    });
+
+    it('calls callback with error on failed API request', function () {
+      client.roundtrip.withArgs(sinon.match.has('method', 'GET')).callsArgWith(1, 'errorTest', 'response', {})
+      client._currentReconcile(callback)
+      sinon.assert.calledWithMatch(callback, 'errorTest')
+    });
+
+    context('wallet/:id endpoint returns no unsignedTx', function () {
+      beforeEach(function () {
+        rt1 = client.roundtrip.withArgs(
+          sinon.match.has('method', 'GET')
+            .and(sinon.match.has('path', '/v1/wallet/paymentIdTest?refresh=true&amount=11&currency=USD'))
+        ).callsArgWith(1, false, 'response', {
+          balance: 'balanceTest',
+          buyURL: 'buyURLTest',
+          recurringURL: 'recurringURLTest',
+          satoshis: 'satoshisTest',
+          rates: {'USD': 2},
+          unsignedTx: false,
+        })
+      });
+
+      it('sets local paymentInfo', function () {
+        client._currentReconcile(callback)
+        sinon.assert.called(rt1)
+        expect(client.state.paymentInfo).to.deep.include({
+          balance: 'balanceTest',
+          buyURL: 'buyURLTest',
+          recurringURL: 'recurringURLTest',
+          satoshis: 'satoshisTest',
+          address: 'addressTest',
+          btc: '5.5000',
+          amount: 11,
+          currency: 'USD'
+        });
+      });
+
+      it('calls passed callback', function () {
+        client._currentReconcile(callback)
+        sinon.assert.calledWithMatch(callback, null, client.state, sinon.match.number.and(sinon.match(function (v) { return ((10 * 60 * 1000) <= v <= 1) })))
+      });
+    });
+
+    context('wallet/:id endpoint returns unsignedTx', function () {
+      var wallet, rt1
+
+      before(function () {
+        this.ballots = 'placeholder for sinon'
+        this.transactions = 'placeholder for sinon'
+      });
+
+      after(function () {
+        delete this.ballots
+        delete this.transactions
+      });
+
+      beforeEach(function () {
+        wallet = sinon.stub()
+        wallet.signTransaction = sinon.stub().callsArgWith(1, false, 'signedTxTest')
+        sandbox.stub(bitgo.prototype, 'newWalletObject').returns(wallet)
+        sandbox.stub(this, 'transactions').value([])
+
+        client.roundtrip.onFirstCall().callsArgWith(1, false, 'response', {
+          balance: 'balanceTest',
+          buyURL: 'buyURLTest',
+          recurringURL: 'recurringURLTest',
+          satoshis: 'satoshisTest',
+          rates: { 'USD': 2 },
+          unsignedTx: { transactionHex: 'transactionHexTest', unspents: 'unspentsTest', fee: 'feeTest' }
+        })
+        client.roundtrip.onSecondCall().callsArgWith(1, false, 'response', {
+          paymentStamp: 'paymentStampTest',
+          hash: 'hashIdTest',
+          satoshis: 'satoshisTest'
+        })
+        sandbox.stub(client.state.transactions, 'push')
+        sandbox.stub(client, '_updateRules').callsArgWith(0, false)
+      });
+
+      it('makes GET request to /v1/wallet/paymentIdTest?refresh=true&amount=11&currency=USD', function () {
+        client._currentReconcile(callback)
+        sinon.assert.calledWithMatch(client.roundtrip, { method: 'GET', path: '/v1/wallet/paymentIdTest?refresh=true&amount=11&currency=USD' })
+      });
+
+      it('does not set local paymentInfo', function () {
+        client._currentReconcile(callback)
+        assert.deepEqual(client.state.paymentInfo, {})
+      });
+
+      it('makes PUT request to /v1/wallet/...', function () {
+        client._currentReconcile(callback)
+        sinon.assert.calledWithMatch(client.roundtrip, {method: 'PUT', path: '/v1/wallet/paymentIdTest'})
+      });
+
+      it('pushes new transaction to local transactions', function () {
+        client._currentReconcile(callback)
+        sinon.assert.called(client.state.transactions.push)
+        sinon.assert.calledWithMatch(client.state.transactions.push,
+          {
+            viewingId: 'viewingIdTest',
+            surveyorId: 'surveyorIdTest',
+            submissionStamp: 'paymentStampTest',
+            contribution: { fiat: { amount: 11, currency: 'USD' },
+              rates: { USD: 2 },
+              satoshis: 'satoshisTest',
+              fee: 'feeTest'
+            },
+            submissionId: 'hashIdTest'
+        });
+
+        it('calls _updateRules', function () {
+          client._currentReconcile(callback)
+          sinon.assert.called(client._updateRules)
+        });
+
+        it('calls callback', function () {
+          client._currentReconcile(callback)
+          sinon.assert.called(callback)
+        });
+      });
     });
   });
 
