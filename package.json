@@ -7,7 +7,8 @@
     "blastoff":  "DEBUG=*,-babel ./blastoff.js -d -l -v -s http://127.0.0.1:3001 -p `uuidgen`",
     "touchdown": "DEBUG=*,-babel ./blastoff.js -d -l -v -s http://127.0.0.1:3001 -f ./config.json",
     "lint": "standard",
-    "test": "npm run test-security",
+    "test": "npm run test-security && npm run unit",
+    "unit": "./node_modules/mocha/bin/mocha",
     "test-security": "nsp check"
   },
   "repository": {
@@ -34,11 +35,14 @@
     "npm": ">=4.2.0"
   },
   "devDependencies": {
+    "chai": "^4.1.2",
     "del": "^3.0.0",
     "gulp": "^3.9.0",
     "gulp-standard": "^10.0.0",
+    "mocha": "^4.0.1",
     "nsp": "^2.2.0",
     "run-sequence": "^2.0.0",
+    "sinon": "^4.1.1",
     "standard": "10.0.2"
   },
   "standard": {
