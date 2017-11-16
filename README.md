@@ -1,3 +1,4 @@
+# NOTE: This repo is deprecated, please see [bat-client](https://github.com/brave-intl/bat-client)
 # ledger-client
 An example of client code for the [Brave ledger](https://github.com/brave/ledger).
 
